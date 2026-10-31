@@ -139,7 +139,8 @@ else
 fi
 if [[ $offline == 1 ]]; then
   mkdir "$release/offline-artifacts"
-  cp "$assets"/installer-v*.tar.gz "$assets/$payload_name" "$assets"/installer_data*.json "$release/offline-artifacts/"
+  cp "$assets"/installer-v*.tar.gz "$assets"/installer_data*.json "$release/offline-artifacts/"
+  ln "$assets/$payload_name" "$release/offline-artifacts/" 2>/dev/null || cp "$assets/$payload_name" "$release/offline-artifacts/"
 fi
 
 # The macOS 27 SDK's SwiftUI declares @State as a macro whose plugin only Xcode
@@ -150,7 +151,7 @@ if [[ -z ${SDKROOT:-} && ! -e $developer_dir/usr/lib/swift/host/plugins/libSwift
   && ! -e $developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
   && $(xcrun --show-sdk-version) == 2[7-9]* ]]; then
   fallback_sdk=$(ls -d "$developer_dir"/SDKs/MacOSX26.[0-9]*.sdk \
-    "$developer_dir"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.[0-9]*.sdk 2>/dev/null | sort -V | tail -n 1)
+    "$developer_dir"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.[0-9]*.sdk 2>/dev/null | sort -V | tail -n 1 || true)
   [[ -n $fallback_sdk ]] || fail "the macOS $(xcrun --show-sdk-version) SDK needs Xcode to build SwiftUI; install Xcode or a macOS 26 SDK"
   export SDKROOT="$fallback_sdk"
   echo "build-j773g-developer: building against $SDKROOT (no SwiftUI macro plugin in $developer_dir)" >&2
