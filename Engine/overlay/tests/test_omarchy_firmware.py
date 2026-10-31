@@ -63,9 +63,10 @@ UPSTREAM_IPSWS = [
           "j514map", "j516sap", "j516cap", "j516map"], "14.8.3"),
 ]
 IPSW_VERSIONS = patched_ipsws() + UPSTREAM_IPSWS
-CHIP_MIN_VER = {0x8103: "11.0", 0x8112: "12.4", 0x8122: "14.8.3", 0x8140: "26.6"}
+CHIP_MIN_VER = {0x8103: "11.0", 0x8112: "12.4", 0x8122: "14.8.3", 0x8140: "26.6",
+                0x8132: "26.6.2"}
 DEVICE_MIN = {"j313ap": "11.0", "j413ap": "12.4", "j613ap": "14.8.3",
-              "j615ap": "14.8.3", "j700ap": "26.6"}
+              "j615ap": "14.8.3", "j700ap": "26.6", "j773gap": "26.6.2"}
 TODAY = ["13.5", "14.8.3", "26.6"]
 ON_26_6_2 = dict(sys_firmware="mBoot-18000.161.10", macos_ver="26.6.2",
                  sfr_full_ver="25.7.83.0.0,0")
@@ -97,7 +98,7 @@ class PatchedFirmwareTableTests(unittest.TestCase):
         self.assertEqual((neo.version, neo.devices), ("26.6", ["j700ap"]))
         self.assertEqual(air, IPSW(
             "26.6.2", "26.0", "mBoot-18000.161.10", "25.7.83.0.0,0", False,
-            ["j613ap", "j615ap", "j700ap"],
+            ["j613ap", "j615ap", "j700ap", "j773gap"],
             "https://updates.cdn-apple.com/2026SummerFCS/fullrestores/140-75212/"
             "A2A24B94-1FC1-45A3-93F7-C51B02AF1F4D/UniversalMac_26.6.2_25G83_Restore.ipsw"))
 
@@ -231,6 +232,30 @@ class FirmwareRequirementTests(unittest.TestCase):
         for device_class, chip in (("j313ap", 0x8103), ("j413ap", 0x8112), ("j613ap", 0x8122)):
             sysinfo, device = mac(device_class, chip)
             require(sysinfo, device, self.EDGE)
+
+
+
+class MacMiniM4Tests(unittest.TestCase):
+    """The M4 Mac mini (j773gap, T8132) installs 26.6.2 OS firmware only."""
+
+    def test_the_patch_admits_t8132_and_j773gap_at_26_6_2(self):
+        main = PATCH.read_text().split("diff --git a/src/main.py")[1].split("diff --git")[0]
+        self.assertIn('+    0x8132: "26.6.2",', main)
+        self.assertIn('+    "j773gap":  Device("26.6.2", False),', main)
+
+    def test_a_mini_offered_26_6_2_takes_it_and_the_larger_stub(self):
+        sysinfo, device = mac("j773gap", 0x8132)
+        self.assertEqual(choose(sysinfo, device, ["13.5", "14.8.3", "26.6.2"]),
+                         ("26.6.2", STUB_SIZE_MACOS26))
+
+    def test_a_mini_on_newer_macos_still_takes_26_6_2(self):
+        sysinfo, device = mac("j773gap", 0x8132, sys_firmware="mBoot-18500.1.1",
+                              macos_ver="27.0", sfr_full_ver="26.1.1.0.0,0")
+        self.assertEqual(choose(sysinfo, device, ["26.6.2"])[0], "26.6.2")
+
+    def test_a_mini_without_26_6_2_in_the_payload_has_no_firmware(self):
+        sysinfo, device = mac("j773gap", 0x8132)
+        self.assertIsNone(choose(sysinfo, device, TODAY)[0])
 
 
 if __name__ == "__main__":
