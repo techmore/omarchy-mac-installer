@@ -409,6 +409,7 @@ def write_payload(zip_path: Path, boot_uuid: str, root_uuid: str, omit: tuple[st
         shutil.copy(ROOT / "builder/omarchy-volume.icns", payload / "omarchy-volume.icns")
         (payload / "esp/aurora").mkdir()
         (payload / "esp/aurora/stage1-j700.bin").write_bytes(raw_stage1())
+        (payload / "esp/aurora/stage1-j773g.bin").write_bytes(raw_stage1())
         shutil.copy(payload / "esp/m1n1/boot.bin", payload / "esp/m1n1/boot-j700.bin")
         if recovery_app is not None:
             shutil.copytree(recovery_app, payload / "esp/aurora/recovery")
@@ -582,6 +583,7 @@ def make_root(root: Path, candidates: Path, layout: str | None = None, lane: str
     write(root, "boot/efi/m1n1/boot.bin", stage2)
     write(root, "boot/efi/m1n1/boot-j700.bin", stage2)
     write(root, "boot/efi/aurora/stage1-j700.bin", member("m1n1-aurora", "usr/share/m1n1-aurora/stage1/m1n1-raw.bin"))
+    write(root, "boot/efi/aurora/stage1-j773g.bin", member("m1n1-aurora", "usr/share/m1n1-aurora/stage1/m1n1-raw.bin"))
     write(root, "etc/m1n1.conf", "# m1n1 options\nchosen.asahi,efi-system-partition=EFI\nunknown=ignored\n")
     loader = pe_image({".text": b"Limine loader"})
     write(root, "usr/share/limine/BOOTAA64.EFI", loader)

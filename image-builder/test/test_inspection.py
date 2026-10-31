@@ -103,9 +103,9 @@ class InspectionTest(unittest.TestCase):
         for check in CHECKS:
             self.assertEqual(report["checks"][check]["result"], "passed", (check, report["checks"][check]))
         self.assertEqual(report["result"], "passed")
-        self.assertEqual(report["m1n1_stage2"]["device_trees"], 36)
+        self.assertEqual(report["m1n1_stage2"]["device_trees"], 37)
         self.assertEqual(report["supported_models"], sorted(fixtures.MODELS))
-        self.assertEqual(len(report["supported_models"]), 35)
+        self.assertEqual(len(report["supported_models"]), 36)
         self.assertNotIn("hardware_profile", report)
         self.assertEqual(report["hardware_setup"], "build")
 
@@ -139,6 +139,14 @@ class InspectionTest(unittest.TestCase):
                 self.setUp()
                 (self.root / rel).write_bytes(data)
                 self.assertFails("installed-boot-payloads", "J700 Stage")
+
+    def test_the_j773g_stage1_must_be_the_sets(self):
+        rel = "boot/efi/aurora/stage1-j773g.bin"
+        (self.root / rel).write_bytes(b"another stage 1")
+        self.assertFails("installed-boot-payloads", "J773g Stage 1")
+        self.setUp()
+        (self.root / rel).unlink()
+        self.assertFails("installed-boot-payloads", "J773g Stage 1")
 
     def test_speakerguardd_starts_only_for_the_j700_and_speakersafetyd_skips_it(self):
         self.assertIn("starts only for AppleJ700", self.inspect()["checks"]["speaker-routing"]["detail"])
@@ -1067,7 +1075,7 @@ class ChannelImageInspectionTest(unittest.TestCase):
         self.assertEqual(report["runtime_sources"], {"omarchy-mac": fixtures.SOURCE, "omarchy-mac-boot": fixtures.SOURCE})
         self.assertNotIn("test image pin", report["checks"]["pacman-config"]["detail"])
         self.assertEqual(report["installed_versions"]["omarchy-dev"], fixtures.CHANNEL_VERSIONS["omarchy"])
-        self.assertEqual(len(report["supported_models"]), 35)
+        self.assertEqual(len(report["supported_models"]), 36)
         self.assertFalse({"lane-channel", "install-receipt"} & set(report["checks"]), "edge inspects as it always has")
         self.assertNotIn("install_receipt", report)
 

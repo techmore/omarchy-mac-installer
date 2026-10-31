@@ -1343,6 +1343,9 @@ stage_board_boot_payloads() {
   mkdir -p "$target/boot/efi/aurora" "$target/boot/efi/m1n1"
   install -m 0644 "$stage1" "$target/boot/efi/aurora/stage1-j700.bin"
   install -m 0644 "$stage2" "$target/boot/efi/m1n1/boot-j700.bin"
+  # The M4 Mac mini (BOARD_STAGE1 j773gap, 26.6.2 only) boots the same raw
+  # Stage 1 and the common m1n1/boot.bin, which carries t8132-j773g.dtb.
+  install -m 0644 "$stage1" "$target/boot/efi/aurora/stage1-j773g.bin"
 }
 
 # Repository names in pacman configuration FILE, in its order.

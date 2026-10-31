@@ -109,8 +109,9 @@ class ChannelSetTest(unittest.TestCase):
         imported = inspection.Candidates(self.work / "set")
         report = {}
         inspection.check_supported_models(self.work, imported, report, fixtures.POLICY)
-        self.assertEqual(len(report["supported_models"]), 35)
+        self.assertEqual(len(report["supported_models"]), 36)
         self.assertIn("t8140-j700", report["supported_models"])
+        self.assertIn("t8132-j773g", report["supported_models"])
         self.assertIn("t8122-j613", report["supported_models"])
 
     def test_an_edge_database_still_on_the_aurora_silicon_m1n1_is_refused(self):

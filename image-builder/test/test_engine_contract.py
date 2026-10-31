@@ -163,10 +163,12 @@ class UnifiedFirmwareTest(unittest.TestCase):
         for device_class, chip_id, firmware in (("j313ap", 0x8103, "13.5"), ("j413ap", 0x8112, "13.5"),
                                                 ("j433ap", 0x8122, "14.8.3"), ("j514sap", 0x6030, "14.8.3"),
                                                 ("j613ap", 0x8122, "14.8.3"), ("j615ap", 0x8122, "14.8.3"),
-                                                ("j700ap", 0x8140, "26.6.2")):
+                                                ("j700ap", 0x8140, "26.6.2"), ("j773gap", 0x8132, "26.6.2")):
             with self.subTest(device_class):
                 self.assertEqual(self.choose(device_class, chip_id)[-1], firmware)
         self.assertEqual(self.choose("j700ap", 0x8140, expert=True), ["26.6.2"], "the Neo can take nothing else")
+        self.assertEqual(self.choose("j773gap", 0x8132, expert=True), ["26.6.2"],
+                         "the M4 Mac mini can take nothing else")
 
 
 class EngineContractTest(unittest.TestCase):
@@ -195,7 +197,7 @@ class EngineContractTest(unittest.TestCase):
         # Each Mac's default from the engine's per-device table (UnifiedFirmwareTest).
         for device_class, firmware in (("j274ap", "13.5"), ("j314sap", "13.5"), ("j413ap", "13.5"),
                                        ("j433ap", "14.8.3"), ("j613ap", "14.8.3"), ("j615ap", "14.8.3"),
-                                       ("j700ap", "26.6.2")):
+                                       ("j700ap", "26.6.2"), ("j773gap", "26.6.2")):
             with self.subTest(device_class):
                 self.assertEqual(engine_admits(metadata, payload, device_class, firmware),
                                  [["13.5", "14.8.3", "26.6.2"]])
@@ -225,7 +227,7 @@ class EngineContractTest(unittest.TestCase):
     def test_missing_or_empty_j700_boot_payloads_are_rejected(self):
         metadata = self.out / "installer_data.json"
         written_metadata(NAME, metadata)
-        for member in ("esp/aurora/stage1-j700.bin", "esp/m1n1/boot-j700.bin"):
+        for member in ("esp/aurora/stage1-j700.bin", "esp/m1n1/boot-j700.bin", "esp/aurora/stage1-j773g.bin"):
             for kind in ("omit", "empty"):
                 with self.subTest(member=member, kind=kind):
                     payload = self.out / NAME
@@ -233,7 +235,7 @@ class EngineContractTest(unittest.TestCase):
                     with self.assertRaises(check.CheckError):
                         check.check_payload("edge", payload, metadata)
                     with self.assertRaises(omarchy_asahi.AsahiAdapterError):
-                        engine_admits(metadata, payload, "j700ap")
+                        engine_admits(metadata, payload, "j773gap" if "j773g" in member else "j700ap")
 
     def test_the_engine_admits_the_builders_payload(self):
         for name, profile in ((NAME, "release"), (LAB_NAME, "lab")):

@@ -304,6 +304,10 @@ def check_installed_payloads(root: Path, candidates: Candidates) -> str:
     require(stage2.is_file() and not stage2.is_symlink()
             and stage2.read_bytes() == (root / "boot/efi/m1n1/boot.bin").read_bytes(),
             "the J700 Stage 2 does not match the inspected common bundle")
+    j773g = root / "boot/efi/aurora/stage1-j773g.bin"
+    require(j773g.is_file() and not j773g.is_symlink()
+            and j773g.read_bytes() == stage1.read_bytes(),
+            "the J773g Stage 1 does not match the authenticated m1n1-aurora package")
     return f"m1n1, U-Boot, the kernel and {len(candidates.dtbs())} device trees match the set's archives"
 
 
