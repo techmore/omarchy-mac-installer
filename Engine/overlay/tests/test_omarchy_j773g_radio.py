@@ -162,6 +162,56 @@ class WiFiTests(unittest.TestCase):
         with self.assertRaisesRegex(radio.RadioError, "sakhalin-X0.txcb"):
             radio.wifi_aliases(str(self.recovery / radio.WIFI_SOURCES[0]))
 
+    def test_load_skips_the_trust_list_and_unknown_dimensions(self):
+        """macOS 26's Firmware directory: TrustedSHAInformation.txt at its top
+        and F-bb files beside the firmware the collection places."""
+        fake = ModuleType("fake_asahi_wifi")
+
+        class FWNode:
+            def __init__(self):
+                self.this, self.leaves = None, {}
+
+        fake.FWNode = FWNode
+        fake.FWFile = lambda name, data: ("FWFile", name, data)
+
+        class Base:
+            EXTMAP = {"trx": "bin", "txt": "txt", "clmb": "clm_blob", "txcb": "txcap_blob", "sig": "sig"}
+            DIMS = ["C", "s", "P", "M", "V", "m", "A"]
+
+            def __init__(self, source_path):
+                self.root = FWNode()
+                self.load(source_path)
+
+            def process_nvram(self, data):
+                return data.replace(b" =", b"=")
+
+        Base.__module__ = fake.__name__
+        firmware = self.recovery / radio.WIFI_SOURCES[0]
+        (firmware / "TrustedSHAInformation.txt").write_bytes(b"sha list\n")
+        board = firmware / "C-4388__s-C0"
+        board.mkdir()
+        (board / "P-mahoganya_M-DRGN_V-g_F-bb__m-1.1.txt").write_bytes(b"newer\n")
+        (board / "P-mahoganya_M-DRGN_V-g__m-1.1.txt").write_bytes(b"boardrev =0x14\n")
+        (board / "mahoganya.trx").write_bytes(b"firmware")
+        with mock.patch.dict(sys.modules, {fake.__name__: fake}):
+            collection = radio.wifi_collection_class(Base)(os.path.join(str(self.recovery), "usr/share/firmware/wifi/"))
+        txt = collection.root.leaves["txt"].leaves["4388"].leaves["C0"].leaves["mahoganya"]
+        self.assertEqual(txt.leaves["DRGN"].leaves["g"].leaves["1.1"].this,
+                         ("FWFile", "C-4388__s-C0/P-mahoganya_M-DRGN_V-g__m-1.1.txt", b"boardrev=0x14\n"))
+        firmware_node = collection.root.leaves["trx"].leaves["4388"].leaves["C0"].leaves["mahoganya"]
+        self.assertEqual(firmware_node.this, ("FWFile", "C-4388__s-C0/mahoganya.trx", b"firmware"))
+        loaded = []
+
+        def walk(node):
+            if node.this:
+                loaded.append(node.this[1])
+            for leaf in node.leaves.values():
+                walk(leaf)
+
+        walk(collection.root)
+        self.assertNotIn("./TrustedSHAInformation.txt", loaded)
+        self.assertFalse(any("F-bb" in name for name in loaded))
+
 
 if __name__ == '__main__':
     unittest.main()

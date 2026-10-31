@@ -31,6 +31,7 @@ import glob
 import hashlib
 import os
 import re
+import sys
 
 import omarchy_mt7932 as _der
 
@@ -117,6 +118,49 @@ def wifi_collection_class(base):
                 root = root[: -len(suffix)] or "."
             self.j773g_source = wifi_source(root)
             super().__init__(self.j773g_source)
+
+        def load(self, source_path):
+            """asahi_firmware's load(), tolerant of macOS 26's driver extension:
+            a file whose path is not KEY-value parts (TrustedSHAInformation.txt
+            at the top of the Firmware directory) and a name with a dimension
+            the collection does not place (the newer F-bb files) are skipped,
+            where upstream raises on both."""
+            upstream = vars(sys.modules[base.__module__])
+            fw_node, fw_file = upstream["FWNode"], upstream["FWFile"]
+            for dirpath, dirnames, filenames in os.walk(source_path):
+                for skipped in ("perf", "assert", "C-4388__s-C2"):
+                    if skipped in dirnames:
+                        dirnames.remove(skipped)
+                subpath = os.path.relpath(dirpath, source_path)
+                for name in sorted(filenames):
+                    if not any(name.endswith("." + i) for i in self.EXTMAP) or "_gen" in name:
+                        continue
+                    path = os.path.join(dirpath, name)
+                    relpath = os.path.join(subpath, name)
+                    if not name.endswith(".txt"):
+                        name = "P-" + name
+                    idpath, ext = os.path.join(subpath, name).rsplit(".", 1)
+                    parts = [i for i in idpath.replace("/", "_").split("_") if i and i != "."]
+                    if any("-" not in i for i in parts):
+                        continue
+                    props = {}
+                    for i in parts:
+                        k, v = i.split("-", 1)
+                        if k == "P" and "-" in v:
+                            props["P"], props["A"] = v.split("-", 1)
+                        else:
+                            props[k] = v
+                    if set(props) - set(self.DIMS):
+                        continue
+                    ident = [ext] + [props[dim] for dim in self.DIMS if dim in props]
+                    node = self.root
+                    for k in ident:
+                        node = node.leaves.setdefault(k, fw_node())
+                    with open(path, "rb") as fd:
+                        data = fd.read()
+                    if name.endswith(".txt"):
+                        data = self.process_nvram(data)
+                    node.this = fw_file(relpath, data)
 
         def files(self):
             yield from super().files()
