@@ -34,6 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 
 HEX40 = re.compile(r'[0-9a-f]{40}')
 SAFE = re.compile(r'[A-Za-z0-9@._+-]+\.pkg\.tar\.(xz|zst)')
@@ -45,7 +46,13 @@ def digest(path):
 
 
 def pkginfo(path):
-    text = subprocess.check_output(['bsdtar', '-xOf', str(path), '.PKGINFO'], text=True)
+    # macOS bsdtar decompresses zstd through a child zstd, which can die of
+    # SIGPIPE once .PKGINFO is read; Python 3.14 reads .tar.zst itself.
+    try:
+        with tarfile.open(path, 'r:zst' if str(path).endswith('.zst') else 'r:*') as archive:
+            text = archive.extractfile('.PKGINFO').read().decode()
+    except (tarfile.TarError, AttributeError, ImportError, KeyError):
+        text = subprocess.check_output(['bsdtar', '-xOf', str(path), '.PKGINFO'], text=True)
     fields = {}
     for line in text.splitlines():
         if ' = ' in line:
