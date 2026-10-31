@@ -10,22 +10,35 @@ The developer catalog is signed by its own Ed25519 key, not Omacom's. Only the p
 
 ## Building the J773g payload
 
-The image needs a candidate set with our kernel (`linux-aurora` from techmore/linux-m1pro-touchid, which ships `t8132-j773g.dtb`), our `m1n1-aurora` (techmore/m1n1, which installs the raw Stage 1 at `usr/share/m1n1-aurora/stage1/m1n1-raw.bin`) and an M4-admitting `mesa-aurora`/`vulkan-aurora` (aurora-silicon/mesa `aurora-wip`). The candidate importer (`image-builder/builder/candidate_set.py`) trusts only `image-builder/builder/candidate-trust/`, so pointing it at our package repository is three edits in `policy.json` plus one file, once that repository exists:
+The image is built from a signed candidate set by the unchanged builder, with the developer trust directory `image-builder/builder/candidate-trust-j773g-developer/` selected by `MAC_IMAGE_CANDIDATE_TRUST=j773g-developer` (the importer and `build-mac-image` take only a committed sibling `candidate-trust-<name>/`; without the variable nothing changes). That directory pins:
 
-1. `boot_repository`: the repository the boot and support packages' signed manifest names as their `source.repository` (for example `techmore/omarchy-pkgs`, the fork carrying the re-pinned PKGBUILDs). Each boot or support package must name it with a 40-hex commit, or come from the Omarchy channel.
-2. `primary_fingerprint`, `signing_fingerprint` and `public_key_sha256`: our candidate signing key's (`gpg --with-colons --fingerprint KEY`, and `sha256sum` of the armored export).
-3. Replace `public.asc` with that key's armored public key (`gpg --armor --export KEY`). Keep the private key outside the repository, like the catalog key.
-4. If our runtime packages are not built from omacom/omarchy, add our repository to `source_repositories` (or `platform_repositories` for `omarchy-mac`/`omarchy-mac-boot`); otherwise build them from an omacom/omarchy commit as the policy expects.
+- our package-signing key, `02BDBB8ABD0FE89754E516D7F845D9C64C9B2A80` (Ed25519, `public.asc` sha256 `e9e5e162b1041f3c500b840809bf1336d649284a6fa845853ddae3d13ea28ffe`). The private key is in a GnuPG home outside the repository (`~/.config/omarchy-dev-keys/pkg-signing/` on the owner's Mac);
+- `boot_repository` `techmore/omarchy-pkgs`: `linux-aurora`/`-headers` and `mesa-aurora`/`vulkan-aurora` from `elementaryos-mseries` 524d2ca8 (kernel techmore/linux-m1pro-touchid fa26b0f, Mesa aurora-silicon/mesa 8990cdb), `m1n1-aurora` from 34c27c6e (techmore/m1n1 9347c18), `omarchy-mlx-vulkan-aurora` from `elementaryos-mseries-mlx` ab549f15 and `omarchy-trial-boot` from `elementaryos-mseries-safeboot` 0184a422, the last two added to `support_packages`;
+- those versions as `minimum_versions` (`linux-aurora` 7.3.0.aurora90-1, `m1n1-aurora` 1.6.1.aurora90-1, Mesa 1:26.3.0_devel.20261031…), so inspection fails if the channel's builds slip in.
 
-Raise `minimum_versions` only if our packages' versions sort above the channel's (they should, so a `pacman -Syu` on the Mac never replaces them). Then, on an aarch64 Linux host with Docker:
+The runtime comes from omacom/omarchy `v4.5.0-rc2` (5978d93ae7da): `omarchy` and `omarchy-settings` 4.5.0rc2-1.1 are rebuilt from the rc PKGBUILDs (techmore/omarchy-pkgs `elementaryos-mseries-runtime`, 6d15bc7d) only to add the `source-revision` file the importer requires; `omarchy-mac` 0.2.3-1 is the edge archive, declared as a platform package (omacom/omarchy-mac-pkgs 60d03b73); `omarchy-mac-boot`, `uboot-aurora`, `limine-mkinitcpio-hook` and the other Aurora support packages are edge archives, each checked against the Omarchy key before it is re-signed. `ane-h16-experimental` and `omarchy-mlx-m4-bench` (which pulls the 740 MB `omarchy-mlx`) are in the package repository only, opt-in.
+
+`image-builder/developer/make-candidate-set` writes and signs the set (it stands in for omarchy-mac's candidate-set tool, which is not public). On the Mac, with the archives in `all/` and the plan in `plan.json`:
 
 ```sh
+image-builder/developer/make-candidate-set --plan plan.json --packages all/ \
+  --gnupghome ~/.config/omarchy-dev-keys/pkg-signing --fingerprint 02BDBB8ABD0FE89754E516D7F845D9C64C9B2A80 \
+  --public-key image-builder/builder/candidate-trust-j773g-developer/public.asc --output set/
+MAC_IMAGE_CANDIDATE_TRUST=j773g-developer python3 image-builder/builder/candidate_set.py describe --input set/
+```
+
+Then, on an aarch64 Linux host with Docker (the build ran in the owner's Lima VM `kbuild`):
+
+```sh
+export MAC_IMAGE_CANDIDATE_TRUST=j773g-developer
 image-builder/bin/mac-image-inputs resolve inputs --candidates set/ --cache cache/
-image-builder/bin/build-mac-image --inputs inputs --candidates set/ --cache cache/ out/
+sudo --preserve-env=MAC_IMAGE_CANDIDATE_TRUST image-builder/bin/build-mac-image --inputs inputs --candidates set/ --cache cache/ out/
 image-builder/bin/mac-image-check payload edge out/<payload>.zip out/installer_data.json
 ```
 
-`INSPECTION` must pass, and the payload must carry `esp/aurora/stage1-j773g.bin` and a `m1n1/boot.bin` holding `t8132-j773g.dtb`.
+`INSPECTION` must pass, and the payload must carry `esp/aurora/stage1-j773g.bin` and a `m1n1/boot.bin` holding `t8132-j773g.dtb`. The image's profile is `test` (a candidate-only set), so its pacman.conf keeps the runtime with the marked test pin, and it never passes the public release guard.
+
+The same signed archives are published as the pacman repository `omarchy-j773g` (database and packages signed by the same key) for installing the opt-in packages and later updates by hand; the image does not list it in `/etc/pacman.conf`.
 
 ### Lab shortcut (fallback)
 
@@ -36,41 +49,40 @@ Until the signed repository exists, repack a published edge payload instead. Thi
 3. Copy `/usr/share/m1n1-aurora/stage1/m1n1-raw.bin` to `esp/aurora/stage1-j773g.bin` in the payload tree, and copy `image-builder/builder/install-timing/*` into the root as `stage_install_timing` does if the timing is wanted.
 4. Unmount, re-zip with the same member layout, and run `image-builder/bin/mac-image-check payload edge PAYLOAD.zip installer_data.json` on it. Its `@factory` seal and `PROVENANCE` still describe the edge build: do not publish it.
 
-## Sealed developer catalog
+## Sealed developer catalog, app and package
 
-Once the payload exists, with `$K` the private catalog key and the engine archive from `python3 Engine/prepare-engine.py --output Engine/artifacts`:
+`Packaging/build-j773g-developer.sh PAYLOAD_DIRECTORY OUTPUT_DIRECTORY` does the rest: it copies the engine archive (`Engine/prepare-engine.py` builds it when missing), the payload and its `.partNN` files and `installer_data.json` (also as `installer_data-j773g.json`) into `OUTPUT/assets`, fills a copy of `scripts/release-inputs-j773g-developer.template.json` (payload name, `downstream_revision` = `HEAD`), runs `make-unsigned-catalog.py --developer`, signs the catalog with the developer key (`scripts/catalog-signing.swift sign`) and verifies it against `Release/developer-j773g/trust-root.ed25519.pub`, then builds the app with `OMARCHY_DEVELOPER_BUILD=1`.
 
-```sh
-assets=$(mktemp -d)
-cp Engine/artifacts/installer-v0.9.2-omarchy.*.tar.gz "$assets/"
-cp out/omarchy-*-j773g-os-package.zip "$assets/"         # the name in the inputs' payload_name
-cp out/installer_data.json "$assets/installer_data.json"
-cp out/installer_data.json "$assets/installer_data-j773g.json"
-# Set downstream_revision to the pushed commit and the payload name and dates in a copy of the template.
-cp scripts/release-inputs-j773g-developer.template.json "$assets/inputs.json"
-python3 scripts/make-unsigned-catalog.py --developer \
-  --base-url https://example.invalid/omarchy-j773g \
-  --assets-dir "$assets" --inputs "$assets/inputs.json" --output "$assets/catalog.json"
-swift scripts/catalog-signing.swift sign "$K" "$assets/catalog.json" "$assets/catalog.json.sig"
-swift scripts/catalog-signing.swift verify Release/developer-j773g/trust-root.ed25519.pub \
-  "$assets/catalog.json" "$assets/catalog.json.sig"
-```
+Settings (environment variables; none is a secret):
 
-The template's main group and the J773g group share the one J773g payload (`make-unsigned-catalog.py` allows groups to share a payload), so no edge payload is needed; each group has its own metadata file. The base URL is informational for an offline build: the app uses the embedded files.
+| Variable | Default | Meaning |
+|---|---|---|
+| `OMARCHY_J773G_CATALOG_KEY` | `~/.config/omarchy-dev-keys/j773g-developer-catalog.ed25519` | private catalog key, mode 0600, never in the repository |
+| `OMARCHY_J773G_BASE_URL` | none (required online) | https base the app downloads the payload and its parts from |
+| `OMARCHY_OFFLINE_BUILD` | `0` | `1` embeds the payload in the app instead |
+| `OMARCHY_APP_SIGNING_IDENTITY` | `-` (ad hoc) | `Developer ID Application: NAME (TEAMID)` or the certificate's SHA-1 |
+| `OMARCHY_TEAM_ID` | from the identity's `(TEAMID)` | the signing team; the helper requirement and `release.json` name it |
+| `OMARCHY_NOTARY_PROFILE` | none | `xcrun notarytool` keychain profile; with a Developer ID identity the app is notarized and stapled |
 
-## Developer app and package
+**Ad hoc (default, works now).** The app is ad hoc signed (`codesign --sign -`, no timestamp) and wrapped in an unsigned developer `.pkg` (`Packaging/build-developer-pkg.sh`), which binds the root helper to the app's exact code hash. Gatekeeper blocks both on first open: right-click the `.pkg` → Open, or allow it in System Settings → Privacy & Security ("Open Anyway"). Only for the owner's Mac.
 
 ```sh
-release=$(mktemp -d)
-cp Release/developer-j773g/release.json Release/developer-j773g/trust-root.ed25519.pub \
-  "$assets/catalog.json" "$assets/catalog.json.sig" "$release/"
-mkdir "$release/offline-artifacts"
-cp "$assets"/installer-v0.9.2-omarchy.*.tar.gz "$assets"/*.zip "$assets"/installer_data*.json "$release/offline-artifacts/"
-OMARCHY_DEVELOPER_BUILD=1 OMARCHY_OFFLINE_BUILD=1 Packaging/build-app.sh "$release" "$PWD/dist"
-Packaging/build-developer-pkg.sh "$PWD/dist/Omarchy Installer.app" "$PWD/dist/Omarchy-J773g-developer.pkg"
+OMARCHY_J773G_BASE_URL=https://github.com/techmore/omarchy-mac-installer/releases/download/j773g-dev-<date> \
+  Packaging/build-j773g-developer.sh out/ /private/tmp/j773g-app
 ```
 
-The app is ad hoc signed and the package unsigned: local hardware testing only. Installing it registers the privileged helper and the install changes the disk and boot policy, so both need the owner at the Mac.
+**Developer ID (signed and notarized).** Needs a "Developer ID Application" certificate with its private key in the login keychain (`security find-identity -v -p codesigning` lists it) and notary credentials stored once with `xcrun notarytool store-credentials omarchy-notary --apple-id … --team-id …` (it prompts for the app-specific password; nothing here reads or stores it). Then:
+
+```sh
+OMARCHY_APP_SIGNING_IDENTITY="Developer ID Application: NAME (TEAMID)" \
+OMARCHY_NOTARY_PROFILE=omarchy-notary \
+OMARCHY_J773G_BASE_URL=https://github.com/techmore/omarchy-mac-installer/releases/download/j773g-dev-<date> \
+  Packaging/build-j773g-developer.sh out/ /private/tmp/j773g-app-signed
+```
+
+`build-app.sh` signs every nested binary and the app with `codesign --force --sign "$identity" --timestamp --options runtime` (hardened runtime, secure timestamp), and the helper, client and decoder requirements name the team. The descriptor is regenerated for the team (`scripts/make-release-descriptor --public-key Release/developer-j773g/trust-root.ed25519.pub`) over the same developer trust root. `Packaging/notarize-app.sh` then zips the app, runs `xcrun notarytool submit --keychain-profile omarchy-notary --wait`, `xcrun stapler staple` and `stapler validate`, and checks `spctl --assess`; `make-download-zip.sh` writes `Omarchy-J773g-developer.zip`. No `.pkg` is made in this mode: the signed app installs its helper itself, and a signed `.pkg` would need a separate "Developer ID Installer" certificate.
+
+Installing it registers the privileged helper and the install changes the disk and boot policy, so both need the owner at the Mac.
 
 ## Debug SSH
 
