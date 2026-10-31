@@ -1333,11 +1333,25 @@ stage_recovery_app() {
 
 # Install-speed measurement (owner's release gate): a oneshot that merges the
 # installer's ESP timing log into /var/log/omarchy/install-timing.jsonl on first
-# boot and appends the Linux milestones. The desktop milestone is the user
-# session's (`exec-once = omarchy-install-timing desktop`); the `/var/log/omarchy`
-# directory is root:wheel 0775 and the log root:wheel 0664 for it.
+# boot and appends the Linux milestones. The desktop and Claude Code milestones
+# are the owner's session's: Omarchy's Hyprland start runs `omarchy-hook
+# post-boot`, and new users get a post-boot hook from /etc/skel that records
+# the desktop and, in the background, installs Claude Code with Anthropic's
+# installer and records it once `claude --version` answers. Set (edit)
+# first_login_claude_code=0 to build without the Claude Code step; the owner
+# opts out with ~/.config/omarchy/no-claude-code. The `/var/log/omarchy`
+# directory is root:wheel 0775 and the log root:wheel 0664 for the session.
+first_login_claude_code=1
 stage_install_timing() {
+  local hook=$target/etc/skel/.config/omarchy/hooks/post-boot.d/50-install-timing
   install -Dm0755 "$ROOT/builder/install-timing/omarchy-install-timing" "$target/usr/local/bin/omarchy-install-timing"
+  install -Dm0644 "$ROOT/builder/install-timing/post-boot-install-timing" "$hook"
+  if (( first_login_claude_code )); then
+    install -Dm0755 "$ROOT/builder/install-timing/omarchy-first-login-claude-code" \
+      "$target/usr/local/bin/omarchy-first-login-claude-code"
+  else
+    sed -i '/omarchy-first-login-claude-code/d' "$hook"
+  fi
   install -Dm0644 "$ROOT/builder/install-timing/omarchy-install-timing.service" \
     "$target/etc/systemd/system/omarchy-install-timing.service"
   mkdir -p "$target/etc/systemd/system/multi-user.target.wants"

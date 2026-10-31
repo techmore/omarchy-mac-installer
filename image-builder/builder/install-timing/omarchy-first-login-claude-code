@@ -1,0 +1,36 @@
+#!/bin/bash
+# Install Claude Code for the owner on their first logins, with Anthropic's
+# installer (https://claude.ai/install.sh, into ~/.local/bin), then record the
+# install-timing milestone `claude_code_answering` once `claude --version`
+# answers. Run in the background by the post-boot hook on every Hyprland start
+# until it has succeeded once; the first login may well have no network yet.
+# Opt out: touch ~/.config/omarchy/no-claude-code (or delete the hook,
+# ~/.config/omarchy/hooks/post-boot.d/50-install-timing).
+set -uo pipefail
+state=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy
+optout=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/no-claude-code
+installer_url=${OMARCHY_CLAUDE_CODE_INSTALLER:-https://claude.ai/install.sh}
+attempts=${OMARCHY_CLAUDE_CODE_ATTEMPTS:-20}
+pause=${OMARCHY_CLAUDE_CODE_PAUSE:-15}
+export PATH="$HOME/.local/bin:$PATH"
+
+[[ -e $optout || -e $state/claude-code-installed ]] && exit 0
+mkdir -p "$state"
+log=$state/claude-code-install.log
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$state/claude-code-install.lock"
+  flock -n 9 || exit 0
+fi
+
+answers() { claude --version >/dev/null 2>&1; }
+for ((attempt = 1; attempt <= attempts; attempt++)); do
+  answers && break
+  printf '%s attempt %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$attempt" "$installer_url" >>"$log"
+  if script=$(curl -fsSL --max-time 60 "$installer_url" 2>>"$log"); then
+    bash -c "$script" >>"$log" 2>&1 && answers && break
+  fi
+  ((attempt < attempts)) && sleep "$pause"
+done
+answers || exit 1
+omarchy-install-timing claude >>"$log" 2>&1 || true
+touch "$state/claude-code-installed"

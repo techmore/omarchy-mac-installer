@@ -113,6 +113,16 @@ Inspection is not boot qualification. After the owner's first login on the Mac, 
 - `/var/lib/omarchy/image/deferred-steps` is gone: the deferred hardware setup finished (if not, `/var/log/omarchy-install.log` names the step it stopped at)
 - `pacman -Q alsa-ucm-conf-asahi asahi-audio` lists both, and in the owner's session `wpctl status` shows the model's `audio_effect.<model>-convolver` (on the M2 Max, `j416-convolver`) as the default sink, not a `stereo-fallback` one
 
+## Install-speed measurement
+
+The installer engine copies its performance log (UTC start and end of each phase, and the Recovery handoff) to the new ESP as `/boot/efi/asahi/install-timing.jsonl`, and the app keeps its own in `~/Library/Logs/omarchy-installer-timing.jsonl`. The image adds the Linux half, all in `/var/log/omarchy/install-timing.jsonl` (root:wheel 0664):
+
+- `omarchy-install-timing.service` (a oneshot on every boot that records once) merges the ESP log, marked `"source":"macos"`, and records `linux_first_boot` with the kernel release and `systemd-analyze`.
+- `/etc/skel/.config/omarchy/hooks/post-boot.d/50-install-timing` is the image's exec-once: Omarchy's Hyprland start (`default/hypr/autostart.lua`) runs `omarchy-hook post-boot`, which runs it. It records `desktop_ready` with the EGL renderer (so llvmpipe shows), then starts `omarchy-first-login-claude-code` in the background.
+- `omarchy-first-login-claude-code` installs Claude Code with Anthropic's installer (`curl -fsSL https://claude.ai/install.sh | bash`, into `~/.local/bin`), retrying 20 times 15 seconds apart and again at the next login while the network is down, then records `claude_code_answering` once `claude --version` answers. Its log is `~/.local/state/omarchy/claude-code-install.log`.
+
+Opting out: the owner touches `~/.config/omarchy/no-claude-code` (keeps the desktop record), or deletes the hook (stops both). A build without the Claude Code step sets `first_login_claude_code=0` in `bin/build-mac-image`. The hook reaches users created from `/etc/skel` (the first-boot owner); an existing user copies it into `~/.config/omarchy/hooks/post-boot.d/` by hand. `test/install-timing-test.sh` exercises the scripts with fake system tools.
+
 ## Neo external-display defaults
 
 The Aurora J700 stack uses the ordinary `t8140-j700.dtb` for external displays.

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Omarchy's Hyprland start runs `omarchy-hook post-boot` (default/hypr/autostart.lua,
+# hl.on("hyprland.start")), which runs this: the image's exec-once for the
+# install-speed measurement. Both steps record at most once per install.
+# Delete this file to stop both; touch ~/.config/omarchy/no-claude-code to keep
+# the desktop record but skip installing Claude Code.
+export PATH="$HOME/.local/bin:$PATH"
+omarchy-install-timing desktop || true
+setsid -f omarchy-first-login-claude-code >/dev/null 2>&1 </dev/null || true

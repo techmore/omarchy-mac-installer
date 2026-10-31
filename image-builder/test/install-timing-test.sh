@@ -54,3 +54,38 @@ pass "Claude Code is recorded once it answers, and only once"
 
 if "$timing" nonsense 2>/dev/null; then fail "an unknown milestone was accepted"; fi
 pass "an unknown milestone is refused"
+
+# First-login Claude Code: Anthropic's installer (a fake here), retried while
+# the network is down, then recorded once; the owner can opt out.
+first_login=$ROOT/builder/install-timing/omarchy-first-login-claude-code
+rm -f "$work/bin/claude"
+export HOME="$work/home" XDG_STATE_HOME= XDG_CONFIG_HOME= OMARCHY_CLAUDE_CODE_PAUSE=0 OMARCHY_CLAUDE_CODE_ATTEMPTS=3
+unset XDG_STATE_HOME XDG_CONFIG_HOME
+mkdir -p "$HOME"
+cp "$timing" "$work/bin/omarchy-install-timing"
+cat >"$work/bin/curl" <<'CURL'
+#!/bin/bash
+count=$HOME/curl-calls
+echo x >>"$count"
+(( $(wc -l <"$count") >= 2 )) || exit 7
+printf 'mkdir -p "$HOME/.local/bin"\nprintf "#!/bin/bash\\necho 2.1.0 \\(Claude Code\\)\\n" >"$HOME/.local/bin/claude"\nchmod +x "$HOME/.local/bin/claude"\n'
+CURL
+chmod +x "$work/bin/curl"
+jq -c 'select(.phase != "claude_code_answering")' "$log" >"$work/log.tmp" && mv "$work/log.tmp" "$log"
+
+mkdir -p "$HOME/.config/omarchy"
+touch "$HOME/.config/omarchy/no-claude-code"
+"$first_login"
+[[ ! -e $HOME/curl-calls ]] || fail "the opt-out still ran the installer"
+pass "the owner can opt out of installing Claude Code"
+
+rm "$HOME/.config/omarchy/no-claude-code"
+"$first_login" || fail "the first-login install failed"
+[[ $(wc -l <"$HOME/curl-calls") -eq 2 ]] || fail "the installer was not retried after a failed fetch"
+[[ -x $HOME/.local/bin/claude ]] || fail "Claude Code was not installed"
+[[ $(jq -r 'select(.phase == "claude_code_answering").version' "$log") == "2.1.0 (Claude Code)" ]] || fail "Claude Code not recorded"
+[[ -e $HOME/.local/state/omarchy/claude-code-installed ]] || fail "the install was not marked done"
+"$first_login"
+[[ $(wc -l <"$HOME/curl-calls") -eq 2 ]] || fail "a later login fetched the installer again"
+[[ $(grep -c claude_code_answering "$log") -eq 1 ]] || fail "Claude Code recorded twice"
+pass "first login installs Claude Code, retrying the fetch, and records it once"
