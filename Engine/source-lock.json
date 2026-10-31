@@ -141,7 +141,7 @@
     }
   },
   "downstream_overlay": {
-    "version": "v0.9.2-omarchy.20261031.e937542d0809",
+    "version": "v0.9.2-omarchy.20261031.a65af41744ea",
     "capability": "candidate_bound_full_os_stage_one_authenticated_recovery",
     "minimum_app_version": "2.3.0",
     "engine_modes": [
@@ -337,12 +337,12 @@
       {
         "path": "overlay/src/omarchy_j773g_radio.py",
         "destination": "src/omarchy_j773g_radio.py",
-        "sha256": "1f4cc5cdb3b6242c64aea818e18eacda2709a56ce704ade3528fc37034b0c7cb"
+        "sha256": "b03bfbe74081685679fbc1a17f9c4e072bb9dae9416e59eb8735940d88f84475"
       },
       {
         "path": "overlay/tests/test_omarchy_j773g_radio.py",
         "destination": "tests/test_omarchy_j773g_radio.py",
-        "sha256": "9b6af50883ae196f1bffc5b86f8b70bae81a83edf5e435e938d5d9fdb0879fa9"
+        "sha256": "78507eae5abe2787131d60f0dadffb46873b2497d76e4d0fc2115b95debdc1ad"
       }
     ]
   },
@@ -477,9 +477,9 @@
     }
   ],
   "validation_artifact": {
-    "filename": "installer-v0.9.2-omarchy.20261031.e937542d0809.tar.gz",
-    "size_bytes": 17907304,
-    "sha256": "57384034728db234f152a1cde85ebab862820b61599fc6eae133d82c82bcc9f3",
+    "filename": "installer-v0.9.2-omarchy.20261031.a65af41744ea.tar.gz",
+    "size_bytes": 17907907,
+    "sha256": "9074624011f8546b280f3a9f06a1b70cd32fc4989db9a62f41130aecd8ecca5c",
     "reproducibility_scope": "two-identical-python-overlay-repacks-authenticated-base",
     "signature": "absent",
     "metadata_sha256": "2e6181ce6b6e17c11039e04bfadade8d10ae0e11889885ad8c9960b68f179a5d"
