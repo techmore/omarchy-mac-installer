@@ -22,6 +22,8 @@
 #                                 NAME (TEAMID)" name or its SHA-1; default "-" (ad hoc)
 #   OMARCHY_TEAM_ID               the identity's team; read from the identity's
 #                                 name when it ends in "(TEAMID)"
+#   OMARCHY_APP_VERSION           the app's version; default the developer catalog's
+#                                 installer.minimum_version (a lower one is refused)
 #   OMARCHY_NOTARY_PROFILE        notarytool keychain profile (xcrun notarytool
 #                                 store-credentials); with a Developer ID identity
 #                                 the app is notarized and stapled
@@ -50,6 +52,15 @@ base_url="${OMARCHY_J773G_BASE_URL:-}"
 identity="${OMARCHY_APP_SIGNING_IDENTITY:--}"
 notary_profile="${OMARCHY_NOTARY_PROFILE:-}"
 trust_root="$repository/Release/developer-j773g/trust-root.ed25519.pub"
+# The app refuses a catalog whose installer.minimum_version is newer than its
+# own version ("This installer is out of date"). build-app.sh defaults to
+# 2.1.0, so default the app's version to the catalog's minimum.
+if [[ -z ${OMARCHY_APP_VERSION:-} ]]; then
+  OMARCHY_APP_VERSION="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["installer"]["minimum_version"])' \
+    "$repository/scripts/release-inputs-j773g-developer.template.json")" \
+    || fail "cannot read installer.minimum_version from the developer inputs template"
+  export OMARCHY_APP_VERSION
+fi
 
 [[ -f $catalog_key && ! -L $catalog_key ]] || fail "missing developer catalog key: $catalog_key"
 [[ $(stat -f %Lp "$catalog_key") == 600 ]] || fail "the catalog key must be mode 0600: $catalog_key"
