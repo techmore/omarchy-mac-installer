@@ -1,5 +1,5 @@
 {
-  "set": "j773g-developer-5978d93ae7da-20261031b",
+  "set": "j773g-developer-5978d93ae7da-20261031c",
   "source": {
     "repository": "omacom/omarchy",
     "commit": "5978d93ae7da0a325b7493501911e3f1266cadd3"
@@ -50,29 +50,29 @@
       "sha256": "217ecec30692de8452739acfc0d9e56c42baab8e171fb49ad800f2681474f17f"
     },
     {
-      "file": "linux-aurora-7.3.0.aurora90-2-aarch64.pkg.tar.zst",
+      "file": "linux-aurora-7.3.0.aurora90-3-aarch64.pkg.tar.zst",
       "source": {
         "repository": "techmore/omarchy-pkgs",
-        "commit": "9fc8597ae4346182939c280d898d0e98336ce7a1"
+        "commit": "c8bb6ccb8463d082dadc07ae719d22297675364a"
       },
-      "sha256": "addfea78f9ea1e08862a5fb5605598c7299db75ed650167ba215c6939cce7dd5",
+      "sha256": "81fb17eb0df51c83cc5318742b4771e39d0553f8043819c64819c1d444085f64",
       "fetch": {
-        "run": "41218723328",
+        "run": "41223855421",
         "repository": "techmore/omarchy-pkgs",
-        "artifact": "linux-aurora-aarch64-9fc8597ae4346182939c280d898d0e98336ce7a1"
+        "artifact": "linux-aurora-aarch64-c8bb6ccb8463d082dadc07ae719d22297675364a"
       }
     },
     {
-      "file": "linux-aurora-headers-7.3.0.aurora90-2-aarch64.pkg.tar.zst",
+      "file": "linux-aurora-headers-7.3.0.aurora90-3-aarch64.pkg.tar.zst",
       "source": {
         "repository": "techmore/omarchy-pkgs",
-        "commit": "9fc8597ae4346182939c280d898d0e98336ce7a1"
+        "commit": "c8bb6ccb8463d082dadc07ae719d22297675364a"
       },
-      "sha256": "f80e39534a42e0d335b319538e830dad907882dfdc338f26a1f923bd95bfc17e",
+      "sha256": "96dbb241b02104561fcefad4e9917ac5e733d96e8772efb1cef44b1c23325a98",
       "fetch": {
-        "run": "41218723328",
+        "run": "41223855421",
         "repository": "techmore/omarchy-pkgs",
-        "artifact": "linux-aurora-aarch64-9fc8597ae4346182939c280d898d0e98336ce7a1"
+        "artifact": "linux-aurora-aarch64-c8bb6ccb8463d082dadc07ae719d22297675364a"
       }
     },
     {
