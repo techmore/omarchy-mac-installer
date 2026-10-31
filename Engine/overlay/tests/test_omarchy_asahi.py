@@ -1985,6 +1985,27 @@ class BoardStage1Tests(unittest.TestCase):
             self.assertEqual(uuid.rstrip(b"\0"), self.UUID.encode())
             self.assertEqual(path.rstrip(b"\0"), b";m1n1/boot.bin")
 
+    def test_the_m4_mini_on_26_6_2_gets_the_filled_j773g_stage1(self):
+        import struct as _struct
+        with tempfile.TemporaryDirectory() as root:
+            target = self.write_generic(root)
+            package = {"esp/aurora/stage1-j773g.bin": j700_stage1(window=1234)}
+            install_board_stage1("j773gap", "26.6.2", package.__getitem__, self.UUID, str(target))
+            data = target.read_bytes()
+            offset = data.index(b"AURORA-S1-CFG01\0") + 16
+            _, window, uuid, path = _struct.unpack_from("<II40s192s", data, offset)
+            self.assertEqual(window, 0)
+            self.assertEqual(uuid.rstrip(b"\0"), self.UUID.encode())
+            self.assertEqual(path.rstrip(b"\0"), b";m1n1/boot.bin")
+
+    def test_an_m4_mini_image_without_the_j773g_stage1_is_refused(self):
+        for package in ({}, {"esp/aurora/stage1-j773g.bin": b"not a stage 1"}):
+            with self.subTest(package=package), tempfile.TemporaryDirectory() as root:
+                target = self.write_generic(root)
+                with self.assertRaises(AsahiAdapterError):
+                    install_board_stage1("j773gap", "26.6.2", package.__getitem__, self.UUID, str(target))
+                self.assertEqual(target.read_bytes(), b"asahi stage 1")
+
     def test_other_macs_and_older_firmware_keep_the_asahi_stage1(self):
         package = {
             "esp/aurora/stage1-j613.bin": j700_stage1(),

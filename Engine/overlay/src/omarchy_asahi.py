@@ -447,6 +447,17 @@ BOARD_STAGE1 = {
         "esp/aurora/stage1-j613.bin", 0, "26.6.2",
         "a 13-inch M3 MacBook Air on macOS 26.6.2",
     ),
+    # The M4 Mac mini boots the raw m1n1 Stage 1 (techmore/m1n1
+    # elementaryos-mseries, the same m1n1-aurora build as Stage 2) on 26.6.2
+    # OS firmware only. Its raw image ends at STACKBOT and is 64 KiB aligned
+    # by m1n1-raw.ld, which kmutil needs on T8132 (GravityLinux/installer
+    # 517c72a pads asahi's Stage 1 for the same reason). asahi's Stage 1 is
+    # never used here: it inits the DCP, which crashes T8132's display
+    # firmware (GravityLinux/installer 486e81b builds it NO_DISPLAY).
+    "j773gap": BoardStage1(
+        "esp/aurora/stage1-j773g.bin", 0, "26.6.2",
+        "the M4 Mac mini on macOS 26.6.2",
+    ),
 }
 
 
