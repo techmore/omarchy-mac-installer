@@ -8,7 +8,8 @@
 #
 # PAYLOAD_DIRECTORY holds the image builder's output: exactly one
 # omarchy-*-os-package.zip (and its .partNN files when it was split for
-# hosting) and installer_data.json.
+# hosting) and installer_data.json. An online build splits a payload over
+# 2 GiB into 1900 MiB .partNN files for GitHub release hosting.
 #
 # Settings (environment):
 #   OMARCHY_J773G_CATALOG_KEY     private developer catalog key (raw Ed25519 seed,
@@ -87,10 +88,28 @@ assets="$output/assets"
 release="$output/release"
 mkdir "$assets" "$release"
 cp "${engines[0]}" "$assets/"
-cp "$payload" "$assets/"
+# Hard links where the file system allows: the payload is several GB.
+ln "$payload" "$assets/" 2>/dev/null || cp "$payload" "$assets/"
 for part in "$payload".part[0-9][0-9]; do
-  [[ -e $part ]] && cp "$part" "$assets/"
+  [[ -e $part ]] || continue
+  ln "$part" "$assets/" 2>/dev/null || cp "$part" "$assets/"
 done
+# A GitHub release asset is at most 2 GiB: an online build's larger payload is
+# split into 1900 MiB parts, which the catalog pins one by one (the app joins
+# them and checks the whole file's digest too).
+if [[ $offline != 1 ]] && ! compgen -G "$assets/$payload_name.part[0-9][0-9]" >/dev/null \
+  && (( $(stat -f %z "$assets/$payload_name") > 2147483648 - 1048576 )); then
+  python3 - "$assets/$payload_name" <<'PY'
+import sys
+path, size = sys.argv[1], 1900 * 1024 * 1024
+with open(path, 'rb') as payload:
+    index = 0
+    while block := payload.read(size):
+        with open(f'{path}.part{index:02d}', 'xb') as part:
+            part.write(block)
+        index += 1
+PY
+fi
 cp "$payload_directory/installer_data.json" "$assets/installer_data.json"
 cp "$payload_directory/installer_data.json" "$assets/installer_data-j773g.json"
 
@@ -123,6 +142,18 @@ if [[ $offline == 1 ]]; then
   cp "$assets"/installer-v*.tar.gz "$assets/$payload_name" "$assets"/installer_data*.json "$release/offline-artifacts/"
 fi
 
+# The macOS 27 SDK's SwiftUI declares @State as a macro whose plugin only Xcode
+# ships: with the Command Line Tools alone the app does not compile against it.
+# Build against the installed macOS 26 SDK then (SDKROOT overrides this).
+if [[ -z ${SDKROOT:-} && ! -e $(xcode-select -p)/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
+  && ! -e $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
+  && $(xcrun --show-sdk-version) == 2[7-9]* ]]; then
+  fallback_sdk=$(ls -d "$(xcode-select -p)"/SDKs/MacOSX26.[0-9]*.sdk 2>/dev/null | sort -V | tail -n 1)
+  [[ -n $fallback_sdk ]] || fail "the macOS $(xcrun --show-sdk-version) SDK needs Xcode to build SwiftUI; install Xcode or a macOS 26 SDK"
+  export SDKROOT="$fallback_sdk"
+  echo "build-j773g-developer: building against $SDKROOT (no SwiftUI macro plugin in $(xcode-select -p))" >&2
+fi
+
 OMARCHY_DEVELOPER_BUILD=1 OMARCHY_OFFLINE_BUILD="$offline" OMARCHY_APP_SIGNING_IDENTITY="$identity" \
   "$repository/Packaging/build-app.sh" "$release" "$output/dist"
 app="$output/dist/Omarchy Installer.app"
@@ -136,6 +167,6 @@ elif [[ -n $notary_profile ]]; then
 else
   echo "build-j773g-developer: signed with $identity but not notarized (no OMARCHY_NOTARY_PROFILE)" >&2
 fi
-(cd "$assets" && shasum -a 256 catalog.json catalog.json.sig "$payload_name" installer_data.json installer-v*.tar.gz) \
+(cd "$assets" && shasum -a 256 catalog.json catalog.json.sig "$payload_name"* installer_data.json installer-v*.tar.gz) \
   | tee "$output/SHA256SUMS"
 echo "Built the J773g developer installer in $output"

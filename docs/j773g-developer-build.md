@@ -56,6 +56,8 @@ Until the signed repository exists, repack a published edge payload instead. Thi
 
 `Packaging/build-j773g-developer.sh PAYLOAD_DIRECTORY OUTPUT_DIRECTORY` does the rest: it copies the engine archive (`Engine/prepare-engine.py` builds it when missing), the payload and its `.partNN` files and `installer_data.json` (also as `installer_data-j773g.json`) into `OUTPUT/assets`, fills a copy of `scripts/release-inputs-j773g-developer.template.json` (payload name, `downstream_revision` = `HEAD`), runs `make-unsigned-catalog.py --developer`, signs the catalog with the developer key (`scripts/catalog-signing.swift sign`) and verifies it against `Release/developer-j773g/trust-root.ed25519.pub`, then builds the app with `OMARCHY_DEVELOPER_BUILD=1`.
 
+An online build splits a payload over 2 GiB into 1900 MiB `.partNN` files (GitHub's per-asset limit is 2 GiB); the catalog pins each part and the whole file. With only the Command Line Tools installed and a macOS 27 SDK selected, the script builds against the installed macOS 26 SDK: the 27 SDK's SwiftUI declares `@State` as a macro whose plugin (`libSwiftUIMacros`) only Xcode ships, so the app does not compile against it. Set `SDKROOT` to override.
+
 Settings (environment variables; none is a secret):
 
 | Variable | Default | Meaning |
