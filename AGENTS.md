@@ -64,3 +64,12 @@ This directory is now the repository root. The original parent repository is not
 - Run `./test/all` for portable source, engine and packaging-fixture checks. It must remain unprivileged and must never invoke live disk, helper registration, signing, publication or deployment operations.
 - Preserve the imported engine lock, release trust configuration and host restrictions during extraction. Changes to those contracts require separate review and validation.
 - Record validation against the exact candidate commit, with toolchain and host details. Linux checks do not satisfy the macOS completion requirements above.
+
+## M4 mini port (techmore fork)
+
+The `elementaryos-mseries` branch carries the Mac mini M4 (J773g) developer build. The port-wide rules are in [AGENT-RULES.md](https://github.com/techmore/ElementaryOS_MSeries-Kernel/blob/gravity-series-validation/gravity/AGENT-RULES.md); read them before you push. In short:
+
+- Work only in the `techmore` forks. Nothing goes upstream until it passes the release gate on the owner's M4 mini and the owner approves it. Check upstream's open PRs and branches first.
+- Developer catalog and package signing keys live only in `~/.config/omarchy-dev-keys/`. Never commit them, print them or put them in artifacts.
+- Debug SSH stays on in developer builds (keys from `github.com/techmore.keys`). It is how we debug a blank GUI.
+- Package pins come from `techmore/omarchy-pkgs` `elementaryos-mseries`. Update the engine lock when they move, and record the install timing for each release-gate run.
