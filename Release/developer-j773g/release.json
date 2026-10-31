@@ -1,0 +1,18 @@
+{
+  "schema_version": 3,
+  "default_channel": "edge",
+  "channels": {
+    "stable": {
+      "catalog_url": "https://mac.omarchy.org/v1/catalog-stable.signed.json"
+    },
+    "rc": {
+      "catalog_url": "https://mac.omarchy.org/v1/catalog-rc.signed.json"
+    },
+    "edge": {
+      "catalog_url": "https://mac.omarchy.org/v1/catalog-edge.signed.json"
+    }
+  },
+  "trust_root_fingerprint": "sha256:e983d95d1fa6e82ae6bdb10c5fef77e13a4c074e6d370b4aeaecafbb29c3e379",
+  "helper_mach_service_name": "org.omarchy.installer.helper",
+  "helper_code_signing_requirement": "identifier \"org.omarchy.installer.helper\""
+}

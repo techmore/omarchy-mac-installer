@@ -73,6 +73,14 @@ bash "$ROOT/scripts/make-release-descriptor" \
 cmp -s "$test_tmp/release.json" "$descriptor" ||
   fail "Release/release.json is what make-release-descriptor writes from identity.conf" \
     "$(diff "$test_tmp/release.json" "$descriptor" || true)"
+# The J773g developer build's own trust root and ad hoc descriptor
+# (docs/j773g-developer-build.md) are derived the same way.
+bash "$ROOT/scripts/make-release-descriptor" --adhoc \
+  --public-key "$ROOT/Release/developer-j773g/trust-root.ed25519.pub" \
+  --output "$test_tmp/developer-j773g-release.json" >/dev/null
+cmp -s "$test_tmp/developer-j773g-release.json" "$ROOT/Release/developer-j773g/release.json" ||
+  fail "Release/developer-j773g/release.json is what make-release-descriptor --adhoc writes" \
+    "$(diff "$test_tmp/developer-j773g-release.json" "$ROOT/Release/developer-j773g/release.json" || true)"
 python3 - "$descriptor" "$INSTALLER_CATALOG_BASE" <<'PY' ||
 import json, sys
 descriptor, base = sys.argv[1:3]
@@ -133,7 +141,7 @@ for value in "${guarded[@]}"; do
 done
 git -C "$ROOT" ls-files -z >"$test_tmp/tracked" || fail "git lists the tracked files"
 mapfile -d '' -t tracked <"$test_tmp/tracked"
-exempt='^(docs|evidence|Design)/|\.md$|^Packaging/identity\.conf$|^Release/release\.json$|^scripts/release-inputs.*\.template\.json$|^\.github/mac-release-pipeline\.json$'
+exempt='^(docs|evidence|Design)/|\.md$|^Packaging/identity\.conf$|^Release/([^/]+/)?release\.json$|^scripts/release-inputs.*\.template\.json$|^\.github/mac-release-pipeline\.json$'
 scanned=()
 for file in "${tracked[@]}"; do
   # A submodule gitlink is a directory, not a file to scan.
