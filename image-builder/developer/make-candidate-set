@@ -17,7 +17,7 @@ from), optional platform_sources, and one entry per archive in DIR:
 
   {"set": "...", "source": {"repository": "omacom/omarchy", "commit": "<40 hex>"},
    "platform_sources": {"omarchy-mac": "<40 hex>"},
-   "packages": [{"file": "linux-aurora-...pkg.tar.zst",
+   "packages": [{"file": "linux-aurora-...pkg.tar.zst", "sha256": "<optional pin>",
                  "source": {"repository": "techmore/omarchy-pkgs", "commit": "<40 hex>"}},
                 {"file": "uboot-aurora-...pkg.tar.zst", "channel": "edge"}]}
 
@@ -88,6 +88,8 @@ def main(argv=None):
         if not SAFE.fullmatch(filename):
             sys.exit(f'make-candidate-set: unsafe archive name {filename}')
         shutil.copyfile(source_path, args.output / filename)
+        if 'sha256' in entry and digest(args.output / filename) != entry['sha256']:
+            sys.exit(f'make-candidate-set: {entry["file"]} is not the archive the plan pins')
         fields = pkginfo(args.output / filename)
         name, version, arch = fields['pkgname'][0], fields['pkgver'][0], fields['arch'][0]
         if 'channel' in entry:

@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""DEVELOPER BUILDS ONLY: download the archives a candidate-set plan names.
+
+  fetch-packages --plan j773g-plan.json --output DIR
+
+Each plan entry's "fetch" says where its "file" comes from:
+
+  {"run": "<id>", "repository": "techmore/omarchy-pkgs", "artifact": "<name>"}
+      a CI artifact holding packages.tar and SHA256SUMS (gh run download);
+      the archive must match SHA256SUMS
+  {"channel": "edge"}
+      https://pkgs.omarchy.org/<lane>/aarch64/<file> and its .sig, which must be
+      a good signature by the Omarchy package key (candidate-trust/omarchy-channel.asc)
+  {"url": "https://..."}
+      a plain download
+
+and, when the entry pins "sha256", the archive must have it. To take new
+packages, edit the plan (file, sha256, source commit, fetch), fetch, and run
+make-candidate-set again. Nothing fetched is trusted until it is signed into
+a set.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import urllib.request
+
+HERE = Path(__file__).resolve().parent
+CHANNEL_KEY = HERE.parent / 'builder' / 'candidate-trust' / 'omarchy-channel.asc'
+
+
+def digest(path):
+    with open(path, 'rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def download(url, path):
+    with urllib.request.urlopen(url) as response, open(path, 'xb') as out:
+        while block := response.read(1 << 20):
+            out.write(block)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--plan', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args(argv)
+    plan = json.loads(args.plan.read_text())
+    args.output.mkdir(parents=True, exist_ok=True)
+    artifacts = {}
+    with tempfile.TemporaryDirectory(prefix='fetch-packages-') as scratch:
+        scratch = Path(scratch)
+        home = scratch / 'gnupg'
+        home.mkdir(mode=0o700)
+        subprocess.run(['gpg', '--homedir', str(home), '--batch', '--dearmor', '--output', str(home / 'channel.gpg'),
+                        str(CHANNEL_KEY)], check=True, capture_output=True)
+        for entry in plan['packages']:
+            # An entry taken from a channel is fetched from it unless it says otherwise.
+            name = entry['file']
+            fetch = entry.get('fetch') or ({'channel': entry['channel']} if 'channel' in entry else {})
+            target = args.output / name
+            if target.exists():
+                target.unlink()
+            if 'run' in fetch:
+                key = (fetch['repository'], fetch['run'], fetch['artifact'])
+                if key not in artifacts:
+                    directory = scratch / f'artifact-{len(artifacts)}'
+                    subprocess.run(['gh', 'run', 'download', fetch['run'], '-R', fetch['repository'],
+                                    '-n', fetch['artifact'], '-D', str(directory)], check=True)
+                    subprocess.run(['tar', '-xf', 'packages.tar'], cwd=directory, check=True)
+                    sums = {}
+                    for line in (directory / 'SHA256SUMS').read_text().splitlines():
+                        value, _, file = line.partition('  ')
+                        sums[file] = value
+                    artifacts[key] = (directory, sums)
+                directory, sums = artifacts[key]
+                # CI keeps the epoch colon in file names; the plan may use either spelling.
+                original = next((f for f in sums if f.replace(':', '.') == name.replace(':', '.')), None)
+                if original is None or digest(directory / original) != sums[original]:
+                    sys.exit(f'fetch-packages: {name} is not in {fetch["artifact"]} or fails its SHA256SUMS')
+                target.write_bytes((directory / original).read_bytes())
+            elif 'channel' in fetch:
+                url = f'https://pkgs.omarchy.org/{fetch["channel"]}/aarch64/{name}'
+                download(url, target)
+                download(url + '.sig', scratch / (name + '.sig'))
+                result = subprocess.run(['gpgv', '--homedir', str(home), '--keyring', str(home / 'channel.gpg'),
+                                         str(scratch / (name + '.sig')), str(target)], capture_output=True)
+                if result.returncode != 0:
+                    sys.exit(f'fetch-packages: {name} has no good Omarchy package signature')
+            elif 'url' in fetch:
+                download(fetch['url'], target)
+            else:
+                sys.exit(f'fetch-packages: {name} names no source')
+            if 'sha256' in entry and digest(target) != entry['sha256']:
+                sys.exit(f'fetch-packages: {name} is not the archive the plan pins')
+            print(f'{digest(target)}  {name}')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

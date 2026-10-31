@@ -1,0 +1,179 @@
+{
+  "set": "j773g-developer-5978d93ae7da-20261031",
+  "source": {
+    "repository": "omacom/omarchy",
+    "commit": "5978d93ae7da0a325b7493501911e3f1266cadd3"
+  },
+  "platform_sources": {
+    "omarchy-mac": "60d03b731e65587f22f8eb8d396b8afcc71601c3"
+  },
+  "packages": [
+    {
+      "file": "omarchy-4.5.0rc2-1.1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "omacom/omarchy",
+        "commit": "5978d93ae7da0a325b7493501911e3f1266cadd3",
+        "pkgbuild": "techmore/omarchy-pkgs@6d15bc7d54ecfce3f64e596dcd1f84c564826bcb"
+      },
+      "sha256": "024654b647fac93f1389adea3ee41a51d23fb9afa351239fad3965c65db71477",
+      "fetch": {
+        "url": "https://github.com/techmore/omarchy-pkgs/releases/download/j773g-dev-repo-20261031/omarchy-4.5.0rc2-1.1-aarch64.pkg.tar.zst"
+      }
+    },
+    {
+      "file": "omarchy-settings-4.5.0rc2-1.1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "omacom/omarchy",
+        "commit": "5978d93ae7da0a325b7493501911e3f1266cadd3",
+        "pkgbuild": "techmore/omarchy-pkgs@6d15bc7d54ecfce3f64e596dcd1f84c564826bcb"
+      },
+      "sha256": "419ec8802ba9a63ef1b09a29686d20425e619e6f983caee7adbd0048c8b036fa",
+      "fetch": {
+        "url": "https://github.com/techmore/omarchy-pkgs/releases/download/j773g-dev-repo-20261031/omarchy-settings-4.5.0rc2-1.1-aarch64.pkg.tar.zst"
+      }
+    },
+    {
+      "file": "omarchy-mac-0.2.3-1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "omacom/omarchy-mac-pkgs",
+        "commit": "60d03b731e65587f22f8eb8d396b8afcc71601c3",
+        "channel_archive": "https://pkgs.omarchy.org/edge/aarch64/omarchy-mac-0.2.3-1-aarch64.pkg.tar.zst"
+      },
+      "sha256": "2d1f921c465d9520aa7703fcebba2cd0585b273ba697c71ccb45c89f4b7c844e",
+      "fetch": {
+        "channel": "edge"
+      }
+    },
+    {
+      "file": "omarchy-mac-boot-20261027-1-aarch64.pkg.tar.zst",
+      "channel": "edge",
+      "sha256": "217ecec30692de8452739acfc0d9e56c42baab8e171fb49ad800f2681474f17f"
+    },
+    {
+      "file": "linux-aurora-7.3.0.aurora90-1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "techmore/omarchy-pkgs",
+        "commit": "524d2ca8e716dc28c48dd487c0f54a5f3cab672a"
+      },
+      "sha256": "d24a142ebccbbfb059b054a9c71ceb14f893366dfb9b41aba58f720089e90e02",
+      "fetch": {
+        "run": "41207184159",
+        "repository": "techmore/omarchy-pkgs",
+        "artifact": "linux-aurora-aarch64-524d2ca8e716dc28c48dd487c0f54a5f3cab672a"
+      }
+    },
+    {
+      "file": "linux-aurora-headers-7.3.0.aurora90-1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "techmore/omarchy-pkgs",
+        "commit": "524d2ca8e716dc28c48dd487c0f54a5f3cab672a"
+      },
+      "sha256": "51481d66560fd597f0e52f778182f19c7a73c7d2e3bd50650ef1b44a1d8981b5",
+      "fetch": {
+        "run": "41207184159",
+        "repository": "techmore/omarchy-pkgs",
+        "artifact": "linux-aurora-aarch64-524d2ca8e716dc28c48dd487c0f54a5f3cab672a"
+      }
+    },
+    {
+      "file": "m1n1-aurora-1.6.1.aurora90-1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "techmore/omarchy-pkgs",
+        "commit": "34c27c6e36c9d201cbef4e311a7dbcf47431e9b4"
+      },
+      "sha256": "fced8005a9afb3b5ebe97d1a915ca4e447f38f5b14ed2f877a9bdb0d70e28dc5",
+      "fetch": {
+        "run": "41207395943",
+        "repository": "techmore/omarchy-pkgs",
+        "artifact": "m1n1-aurora-aarch64-34c27c6e36c9d201cbef4e311a7dbcf47431e9b4"
+      }
+    },
+    {
+      "file": "uboot-aurora-2026.07.aurora5-1-aarch64.pkg.tar.zst",
+      "channel": "edge",
+      "sha256": "4ecec930158ef112d52835085ce82db3407a1d3099af2ee05135abcc215bdb5f"
+    },
+    {
+      "file": "limine-mkinitcpio-hook-1.40.0-2-aarch64.pkg.tar.zst",
+      "channel": "edge",
+      "sha256": "66c975c5f7de631bc695f88aac33d78c361adfbb5d821bc4d1bf89dce6ff1379"
+    },
+    {
+      "file": "aurora-audio-4.1.aurora3-3-aarch64.pkg.tar.zst",
+      "channel": "edge",
+      "sha256": "c53f9e18c3c213eada2fa7b7dbee5f04224304d296e6b3c672f12e20fed19c7c"
+    },
+    {
+      "file": "alsa-ucm-conf-aurora-10.aurora3-1-aarch64.pkg.tar.zst",
+      "channel": "edge",
+      "sha256": "77161459a800e9803b700b0200006ac13ad1e1e92b63b04ba3abc82fe0164352"
+    },
+    {
+      "file": "speakerguardd-0.1.0.aurora3-1-aarch64.pkg.tar.zst",
+      "channel": "edge",
+      "sha256": "4910c0807f980172e52b908ba55d961b7deda57f43bda77e51f10c6eeb2bb7ca"
+    },
+    {
+      "file": "omarchy-aurora-firmware-20261014-7-aarch64.pkg.tar.zst",
+      "channel": "edge",
+      "sha256": "322bf80865cdb3a5b8e37d127785826ebd8bdc98c9026c1e0eef8e1685cfe4c8"
+    },
+    {
+      "file": "aurora-bless-0.4.4.aurora2-1-aarch64.pkg.tar.zst",
+      "channel": "edge",
+      "sha256": "23ae2572f4b15246aafbdfd9929250250ceb623b9e7810886720f4ff117fa732"
+    },
+    {
+      "file": "mesa-aurora-1:26.3.0_devel.20261031.231461.8990cdb219b-1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "techmore/omarchy-pkgs",
+        "commit": "524d2ca8e716dc28c48dd487c0f54a5f3cab672a"
+      },
+      "sha256": "595c5695cf0aa4b2f2a929b09fafe71a5c2dd5b54a7dcc9aa9a248fa468bd842",
+      "fetch": {
+        "run": "41207184159",
+        "repository": "techmore/omarchy-pkgs",
+        "artifact": "mesa-aurora-aarch64-524d2ca8e716dc28c48dd487c0f54a5f3cab672a"
+      }
+    },
+    {
+      "file": "vulkan-aurora-1:26.3.0_devel.20261031.231461.8990cdb219b-1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "techmore/omarchy-pkgs",
+        "commit": "524d2ca8e716dc28c48dd487c0f54a5f3cab672a"
+      },
+      "sha256": "e69f8f5f6247af2d3e42310ed10b7f386bbec8c5f6cdb91359344aacc4d4b7f4",
+      "fetch": {
+        "run": "41207184159",
+        "repository": "techmore/omarchy-pkgs",
+        "artifact": "mesa-aurora-aarch64-524d2ca8e716dc28c48dd487c0f54a5f3cab672a"
+      }
+    },
+    {
+      "file": "omarchy-mlx-vulkan-aurora-0.1.0-1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "techmore/omarchy-pkgs",
+        "commit": "ab549f1580c9cbe00c0b308e446fdcf5f8694081"
+      },
+      "sha256": "5da28efd388d33cfe7b756e71bc8836f726a6042d14f23c8f45cb0352c6539a2",
+      "fetch": {
+        "run": "41209983504",
+        "repository": "techmore/omarchy-pkgs",
+        "artifact": "omarchy-mlx-m4-aarch64-ab549f1580c9cbe00c0b308e446fdcf5f8694081"
+      }
+    },
+    {
+      "file": "omarchy-trial-boot-0.1.0-1-aarch64.pkg.tar.zst",
+      "source": {
+        "repository": "techmore/omarchy-pkgs",
+        "commit": "0184a4222e25d4f88b7e409091c31c7de1997fb6"
+      },
+      "sha256": "88166b624f2379da76c005cc5b2bb3ce3c1039165192b3f89d82e113c622c1ff",
+      "fetch": {
+        "run": "41211083243",
+        "repository": "techmore/omarchy-pkgs",
+        "artifact": "omarchy-trial-boot-aarch64-0184a4222e25d4f88b7e409091c31c7de1997fb6"
+      }
+    }
+  ]
+}

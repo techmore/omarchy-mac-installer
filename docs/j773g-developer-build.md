@@ -18,14 +18,17 @@ The image is built from a signed candidate set by the unchanged builder, with th
 
 The runtime comes from omacom/omarchy `v4.5.0-rc2` (5978d93ae7da): `omarchy` and `omarchy-settings` 4.5.0rc2-1.1 are rebuilt from the rc PKGBUILDs (techmore/omarchy-pkgs `elementaryos-mseries-runtime`, 6d15bc7d) only to add the `source-revision` file the importer requires; `omarchy-mac` 0.2.3-1 is the edge archive, declared as a platform package (omacom/omarchy-mac-pkgs 60d03b73); `omarchy-mac-boot`, `uboot-aurora`, `limine-mkinitcpio-hook` and the other Aurora support packages are edge archives, each checked against the Omarchy key before it is re-signed. `ane-h16-experimental` and `omarchy-mlx-m4-bench` (which pulls the 740 MB `omarchy-mlx`) are in the package repository only, opt-in.
 
-`image-builder/developer/make-candidate-set` writes and signs the set (it stands in for omarchy-mac's candidate-set tool, which is not public). On the Mac, with the archives in `all/` and the plan in `plan.json`:
+`image-builder/developer/j773g-plan.json` is the set: each archive with its sha256, its source commit and where to fetch it (a CI artifact of techmore/omarchy-pkgs, checked against its `SHA256SUMS`; an edge archive, checked against the Omarchy key; or a release asset). `image-builder/developer/make-candidate-set` writes and signs the set (it stands in for omarchy-mac's candidate-set tool, which is not public). On the Mac:
 
 ```sh
-image-builder/developer/make-candidate-set --plan plan.json --packages all/ \
+image-builder/developer/fetch-packages --plan image-builder/developer/j773g-plan.json --output all/
+image-builder/developer/make-candidate-set --plan image-builder/developer/j773g-plan.json --packages all/ \
   --gnupghome ~/.config/omarchy-dev-keys/pkg-signing --fingerprint 02BDBB8ABD0FE89754E516D7F845D9C64C9B2A80 \
   --public-key image-builder/builder/candidate-trust-j773g-developer/public.asc --output set/
 MAC_IMAGE_CANDIDATE_TRUST=j773g-developer python3 image-builder/builder/candidate_set.py describe --input set/
 ```
+
+To take new packages (a new `linux-aurora` or `m1n1-aurora` build), change that entry's `file`, `sha256`, `source.commit` and `fetch` (run id and artifact name), raise `minimum_versions` in `candidate-trust-j773g-developer/policy.json` if the version moved, rename `set`, then fetch, make the set and build again. A new support package also needs its name in the policy's `support_packages`.
 
 Then, on an aarch64 Linux host with Docker (the build ran in the owner's Lima VM `kbuild`):
 
