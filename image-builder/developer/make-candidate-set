@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""DEVELOPER BUILDS ONLY: write and sign a candidate set for build-mac-image.
+
+The set is the directory builder/candidate_set.py imports: each package archive
+with its detached signature, manifest.json, signing.json and signing.json.sig.
+This tool stands in for omacom/omarchy-mac's candidate-set tool, which is not
+public, for the Mac mini M4 (J773g) developer image. It signs with a GnuPG key
+the operator holds outside the repository; the importer trusts that key only
+through a developer trust directory (builder/candidate-trust-<name>/, selected
+with MAC_IMAGE_CANDIDATE_TRUST).
+
+  make-candidate-set --plan PLAN.json --packages DIR --gnupghome HOME
+                     --fingerprint FPR --public-key FILE --output DIR
+
+PLAN names the set, its source (the omacom/omarchy commit the runtime was built
+from), optional platform_sources, and one entry per archive in DIR:
+
+  {"set": "...", "source": {"repository": "omacom/omarchy", "commit": "<40 hex>"},
+   "platform_sources": {"omarchy-mac": "<40 hex>"},
+   "packages": [{"file": "linux-aurora-...pkg.tar.zst",
+                 "source": {"repository": "techmore/omarchy-pkgs", "commit": "<40 hex>"}},
+                {"file": "uboot-aurora-...pkg.tar.zst", "channel": "edge"}]}
+
+A "channel" entry records the package as taken from that Omarchy channel's
+aarch64 repository (its pkgs.omarchy.org URL), as the importer expects; check
+its Omarchy signature before you put it in a plan. Archive names with an epoch
+colon are written with a dot, as a release asset must be.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+HEX40 = re.compile(r'[0-9a-f]{40}')
+SAFE = re.compile(r'[A-Za-z0-9@._+-]+\.pkg\.tar\.(xz|zst)')
+
+
+def digest(path):
+    with open(path, 'rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def pkginfo(path):
+    text = subprocess.check_output(['bsdtar', '-xOf', str(path), '.PKGINFO'], text=True)
+    fields = {}
+    for line in text.splitlines():
+        if ' = ' in line:
+            key, value = line.split(' = ', 1)
+            fields.setdefault(key, []).append(value)
+    return fields
+
+
+def set_digest(packages):
+    lines = sorted((f"{p['name']} {p['version']} {p['filename']} {p['sha256']}\n" for p in packages),
+                   key=lambda line: line.encode())
+    return hashlib.sha256(''.join(lines).encode()).hexdigest()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--plan', type=Path, required=True)
+    parser.add_argument('--packages', type=Path, required=True)
+    parser.add_argument('--gnupghome', type=Path, required=True)
+    parser.add_argument('--fingerprint', required=True)
+    parser.add_argument('--public-key', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args(argv)
+    plan = json.loads(args.plan.read_text())
+    fingerprint = args.fingerprint.upper()
+    if not HEX40.fullmatch(fingerprint.lower()):
+        sys.exit('make-candidate-set: the fingerprint must be 40 hex digits')
+    if not HEX40.fullmatch(plan['source']['commit']):
+        sys.exit('make-candidate-set: the plan source commit must be 40 hex digits')
+    args.output.mkdir()
+
+    def sign(path):
+        subprocess.run(['gpg', '--homedir', str(args.gnupghome), '--batch', '--yes', '--local-user', fingerprint,
+                        '--detach-sign', '--no-armor', '--output', str(path) + '.sig', str(path)], check=True)
+
+    packages = []
+    for entry in plan['packages']:
+        source_path = args.packages / entry['file']
+        filename = entry['file'].replace(':', '.')
+        if not SAFE.fullmatch(filename):
+            sys.exit(f'make-candidate-set: unsafe archive name {filename}')
+        shutil.copyfile(source_path, args.output / filename)
+        fields = pkginfo(args.output / filename)
+        name, version, arch = fields['pkgname'][0], fields['pkgver'][0], fields['arch'][0]
+        if 'channel' in entry:
+            lane = entry['channel']
+            source = {'channel': f'omacom {lane} aarch64', 'url': f'https://pkgs.omarchy.org/{lane}/aarch64/{filename}',
+                      'omacom_signature': 'verified with the Omarchy package key before signing'}
+        else:
+            source = entry['source']
+            if not HEX40.fullmatch(source.get('commit', '')):
+                sys.exit(f'make-candidate-set: {name} names no 40-hex source commit')
+        sign(args.output / filename)
+        packages.append({'name': name, 'version': version, 'arch': arch, 'filename': filename,
+                         'sha256': digest(args.output / filename), 'source': source})
+
+    manifest = {'schema': 1, 'candidate_only': True, 'set': plan['set'], 'source': plan['source'],
+                'packages': packages}
+    if plan.get('platform_sources'):
+        manifest['platform_sources'] = plan['platform_sources']
+    manifest['set_sha256'] = set_digest(packages)
+    (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    shutil.copyfile(args.public_key, args.output / 'candidate-signing-key.asc')
+    receipt = {
+        'schema': 1, 'set': plan['set'], 'manifest_sha256': digest(args.output / 'manifest.json'),
+        'set_sha256': manifest['set_sha256'],
+        'signer': {'fingerprint': fingerprint, 'key': 'candidate-signing-key.asc',
+                   'key_sha256': digest(args.public_key)},
+        'signatures': [{'file': p['filename'], 'sha256': p['sha256'], 'signature': p['filename'] + '.sig',
+                        'signature_sha256': digest(args.output / (p['filename'] + '.sig'))} for p in packages],
+    }
+    (args.output / 'signing.json').write_text(json.dumps(receipt, indent=2) + '\n')
+    sign(args.output / 'signing.json')
+    print(f"set={plan['set']}\nset_sha256={manifest['set_sha256']}\n"
+          f"receipt_sha256={digest(args.output / 'signing.json')}\nmanifest_sha256={receipt['manifest_sha256']}")
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

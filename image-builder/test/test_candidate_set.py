@@ -442,5 +442,26 @@ class VercmpTest(unittest.TestCase):
                 self.assertEqual(c.vercmp(b, a), -expected)
 
 
+class DeveloperTrustTest(unittest.TestCase):
+    """MAC_IMAGE_CANDIDATE_TRUST names a committed sibling trust directory, never a path."""
+
+    def test_default_and_developer_trust_directories(self):
+        c = fixtures.candidate_set
+        self.assertEqual(c.trust_root(None).name, "candidate-trust")
+        self.assertEqual(c.trust_root("").name, "candidate-trust")
+        developer = c.trust_root("j773g-developer")
+        self.assertEqual(developer.name, "candidate-trust-j773g-developer")
+        policy = c.load_policy(developer)
+        self.assertEqual(policy["boot_repository"], "techmore/omarchy-pkgs")
+        self.assertIn("t8132-j773g", policy["device_trees"])
+        self.assertNotEqual(policy["primary_fingerprint"], c.load_policy(c.trust_root(None))["primary_fingerprint"])
+
+    def test_only_a_name_beside_the_importer_is_accepted(self):
+        c = fixtures.candidate_set
+        for name in ("../candidate-trust", "/tmp/x", "J773G", "-x", "missing-directory"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                c.trust_root(name)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,10 @@ with its detached .sig. Trust comes only from candidate-trust/ beside this
 file: the signer's fingerprints, the digest of its public key and the package
 set the plan names. The key file that travels with a set is never read.
 
+A developer build may name a committed sibling, candidate-trust-<name>/, in
+MAC_IMAGE_CANDIDATE_TRUST (the J773g developer image: candidate-trust-j773g-developer/,
+its own package key and boot repository). Nothing else changes.
+
 Besides the runtime and boot packages the plan names, a set may carry the
 rest of the Apple default set's closure that the Apple repository order takes
 from an Omarchy channel. Those, the boot packages and the boot package the
@@ -44,7 +48,9 @@ import subprocess
 import sys
 import tempfile
 
-TRUST = Path(__file__).resolve().parent / 'candidate-trust'
+HERE = Path(__file__).resolve().parent
+# A developer build's own trust directory, by name (MAC_IMAGE_CANDIDATE_TRUST).
+DEVELOPER_TRUST = re.compile(r'[a-z0-9][a-z0-9-]{0,63}')
 HEX40 = re.compile(r'[0-9a-f]{40}')
 HEX64 = re.compile(r'[0-9a-f]{64}')
 ARCHIVE = re.compile(r'[A-Za-z0-9@._+:-]+\.pkg\.tar\.(xz|zst)')
@@ -82,6 +88,22 @@ BAD_STATUS = re.compile(r'\b(BADSIG|ERRSIG|REVKEYSIG|EXPKEYSIG|EXPSIG|KEYREVOKED
 def require(ok, message):
     if not ok:
         raise ValueError(message)
+
+
+def trust_root(name=None):
+    """The trust directory: candidate-trust/ beside this file or, for a developer
+    build that names one in MAC_IMAGE_CANDIDATE_TRUST, its committed sibling
+    candidate-trust-<name>/ (the J773g developer image's own package key). Only a
+    directory beside this file can be named, never a path."""
+    if not name:
+        return HERE / 'candidate-trust'
+    require(DEVELOPER_TRUST.fullmatch(name) is not None, 'invalid MAC_IMAGE_CANDIDATE_TRUST: ' + repr(name))
+    root = HERE / f'candidate-trust-{name}'
+    require(root.is_dir() and not root.is_symlink(), 'no candidate trust directory ' + root.name)
+    return root
+
+
+TRUST = trust_root(os.environ.get('MAC_IMAGE_CANDIDATE_TRUST'))
 
 
 def digest(path):
