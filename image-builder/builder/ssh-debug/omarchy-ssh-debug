@@ -1,0 +1,170 @@
+#!/bin/bash
+# Debug SSH for the owner's developer image (omarchy-ssh-debug.service, after
+# network-online.target, until it has succeeded once): installs and enables
+# OpenSSH with key-only logins, authorizes the first user's GitHub public keys
+# (https://github.com/<GITHUB_USER>.keys; public data, nothing secret is in the
+# image), opens SSH (rate limited) and mDNS in UFW, makes sure the Mac answers
+# as <hostname>.local, and records `ssh_ready` in the install-timing log.
+#
+# Settings: /etc/omarchy/ssh-debug.conf (GITHUB_USER=, set by the image build).
+# Opt out: touch /etc/omarchy/no-ssh-debug (or /boot/efi/omarchy-no-ssh-debug
+# from macOS before the first boot), or build with ssh_debug=0. To undo it
+# later: systemctl disable --now sshd, and delete
+# /etc/ssh/sshd_config.d/20-omarchy-ssh-debug.conf.
+set -uo pipefail
+conf=${OMARCHY_SSH_DEBUG_CONF:-/etc/omarchy/ssh-debug.conf}
+optouts=(${OMARCHY_SSH_DEBUG_OPTOUT:-/etc/omarchy/no-ssh-debug /boot/efi/omarchy-no-ssh-debug})
+state=${OMARCHY_SSH_DEBUG_STATE:-/var/lib/omarchy/ssh-debug}
+log=${OMARCHY_SSH_DEBUG_LOG:-/var/log/omarchy/ssh-debug.log}
+dropin=${OMARCHY_SSH_DEBUG_DROPIN:-/etc/ssh/sshd_config.d/20-omarchy-ssh-debug.conf}
+attempts=${OMARCHY_SSH_DEBUG_ATTEMPTS:-30}
+pause=${OMARCHY_SSH_DEBUG_PAUSE:-10}
+KEY_TYPES=" ssh-ed25519 sk-ssh-ed25519@openssh.com ecdsa-sha2-nistp256 ecdsa-sha2-nistp384 ecdsa-sha2-nistp521 sk-ecdsa-sha2-nistp256@openssh.com ssh-rsa "
+
+mkdir -p "$state" "${log%/*}"
+say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$log"; }
+
+for optout in "${optouts[@]}"; do
+  if [[ -e $optout ]]; then
+    say "opted out by $optout; nothing done"
+    touch "$state/done"
+    exit 0
+  fi
+done
+GITHUB_USER=
+# shellcheck source=/dev/null
+[[ -r $conf ]] && . "$conf"
+if [[ ! $GITHUB_USER =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$ ]]; then
+  say "no valid GITHUB_USER in $conf; nothing done"
+  exit 1
+fi
+
+# The owner: the first account with a login shell and a UID from 1000.
+owner=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 && $7 !~ /(nologin|false)$/ { print $3, $1 }' |
+  sort -n | head -1 | cut -d' ' -f2)
+if [[ -z $owner ]]; then
+  say "no user account yet; will retry"
+  exit 75
+fi
+home=$(getent passwd "$owner" | cut -d: -f6)
+group=$(id -gn "$owner")
+if [[ $home != /* || ! -d $home ]]; then
+  say "$owner has no home directory yet; will retry"
+  exit 75
+fi
+
+# A public key line: a known type, its base64 blob naming the same type, and
+# at most a comment. No options (command=, from=...), nothing else.
+valid_key() {
+  local type blob comment rest decoded
+  read -r type blob comment rest <<<"$1"
+  [[ -z $rest && $KEY_TYPES == *" $type "* && -n $blob ]] || return 1
+  decoded=$(printf '%s' "$blob" | base64 -d 2>/dev/null | head -c $((4 + ${#type})) | tail -c "${#type}") || return 1
+  [[ $decoded == "$type" ]] || return 1
+  if command -v ssh-keygen >/dev/null 2>&1; then
+    ssh-keygen -lf /dev/stdin <<<"$type $blob" >/dev/null 2>&1 || return 1
+  fi
+}
+
+keys=
+for ((attempt = 1; attempt <= attempts; attempt++)); do
+  if keys=$(curl -fsSL --max-time 30 "https://github.com/$GITHUB_USER.keys" 2>>"$log"); then
+    break
+  fi
+  keys=
+  say "fetching https://github.com/$GITHUB_USER.keys failed (attempt $attempt of $attempts)"
+  ((attempt < attempts)) && sleep "$pause"
+done
+if [[ -z $keys ]]; then
+  say "no keys fetched from GitHub user $GITHUB_USER; will retry"
+  exit 75
+fi
+
+ssh_dir=$home/.ssh
+authorized=$ssh_dir/authorized_keys
+if [[ -L $ssh_dir || -L $authorized ]]; then
+  say "$ssh_dir or its authorized_keys is a symbolic link; refusing to write through it"
+  exit 1
+fi
+{ install -d -m 0700 -o "$owner" -g "$group" "$ssh_dir" &&
+  { [[ -e $authorized ]] || install -m 0600 -o "$owner" -g "$group" /dev/null "$authorized"; }; } ||
+  { say "could not prepare $authorized"; exit 1; }
+added=0 kept=0 refused=0
+while IFS= read -r line; do
+  line=${line%$'\r'}
+  [[ -n $line ]] || continue
+  if ! valid_key "$line"; then
+    refused=$((refused + 1))
+    say "refused a line that is not a plain public key: ${line:0:40}"
+    continue
+  fi
+  read -r type blob _ <<<"$line"
+  # The user's own keys stay; a key already present (any comment) is not added twice.
+  if awk -v t="$type" -v b="$blob" '$1 == t && $2 == b { found = 1 } END { exit !found }' "$authorized"; then
+    kept=$((kept + 1))
+  else
+    printf '%s %s github:%s\n' "$type" "$blob" "$GITHUB_USER" >>"$authorized"
+    added=$((added + 1))
+  fi
+done <<<"$keys"
+chown "$owner:$group" "$authorized"
+chmod 0600 "$authorized"
+say "authorized_keys for $owner: $added added, $kept already present, $refused refused"
+if ! grep -qE '^[^#[:space:]]' "$authorized"; then
+  say "$owner has no usable key; SSH stays off; will retry"
+  exit 75
+fi
+
+if ! command -v sshd >/dev/null 2>&1; then
+  say "installing openssh"
+  pacman -S --needed --noconfirm openssh >>"$log" 2>&1 || { say "could not install openssh; will retry"; exit 75; }
+fi
+# sshd takes the first value it reads, and sshd_config includes
+# sshd_config.d/*.conf first, so 20- precedes the stock settings.
+write_file() {
+  mkdir -p "${1%/*}" && cat >"$1.tmp" && chmod 0644 "$1.tmp" && mv -f "$1.tmp" "$1"
+}
+write_file "$dropin" <<'CONF' || { say "could not write $dropin"; exit 1; }
+# Written by omarchy-ssh-debug (developer image): key-only logins.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+PubkeyAuthentication yes
+CONF
+if ! sshd -t >>"$log" 2>&1; then
+  say "sshd rejected its configuration; SSH stays off"
+  rm -f "$dropin"
+  exit 1
+fi
+# An earlier rule could still allow passwords: check what sshd will apply.
+effective=$(sshd -T 2>>"$log" | tr '[:upper:]' '[:lower:]')
+for setting in "passwordauthentication no" "kbdinteractiveauthentication no" "permitrootlogin no" "pubkeyauthentication yes"; do
+  if ! grep -qxF "$setting" <<<"$effective"; then
+    say "sshd would not apply '$setting'; SSH stays off"
+    exit 1
+  fi
+done
+systemctl enable --now sshd.service >>"$log" 2>&1 || { say "could not start sshd"; exit 1; }
+
+# mDNS: Omarchy enables avahi-daemon with nss-mdns; systemd-resolved's own
+# responder is the fallback when avahi is absent.
+if systemctl cat avahi-daemon.service >/dev/null 2>&1; then
+  systemctl enable --now avahi-daemon.service >>"$log" 2>&1 || say "could not start avahi-daemon"
+  mdns=avahi
+else
+  write_file /etc/systemd/resolved.conf.d/20-omarchy-ssh-debug-mdns.conf <<'CONF'
+[Resolve]
+MulticastDNS=yes
+CONF
+  systemctl restart systemd-resolved.service >>"$log" 2>&1 || say "could not restart systemd-resolved"
+  mdns=resolved
+fi
+if command -v ufw >/dev/null 2>&1; then
+  ufw limit 22/tcp comment omarchy-ssh-debug >>"$log" 2>&1 || say "could not open SSH in UFW"
+  ufw allow 5353/udp comment omarchy-ssh-debug-mdns >>"$log" 2>&1 || say "could not open mDNS in UFW"
+fi
+
+host=$(hostnamectl hostname 2>/dev/null || hostname)
+say "ssh ready: ssh $owner@$host.local (mDNS by $mdns)"
+omarchy-install-timing ssh "$owner" "$GITHUB_USER" "$((added + kept))" >>"$log" 2>&1 || true
+touch "$state/done"

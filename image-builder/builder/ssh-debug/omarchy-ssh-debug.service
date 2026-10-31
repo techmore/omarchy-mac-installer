@@ -1,0 +1,17 @@
+[Unit]
+Description=Enable debug SSH with the owner's GitHub keys (developer image)
+Wants=network-online.target
+After=network-online.target multi-user.target
+ConditionPathExists=!/var/lib/omarchy/ssh-debug/done
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/omarchy-ssh-debug
+# 75: no user, no network or no key yet; try again later.
+Restart=on-failure
+RestartSec=60
+RestartPreventExitStatus=1
+
+[Install]
+WantedBy=multi-user.target

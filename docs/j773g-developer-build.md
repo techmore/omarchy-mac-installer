@@ -72,6 +72,10 @@ Packaging/build-developer-pkg.sh "$PWD/dist/Omarchy Installer.app" "$PWD/dist/Om
 
 The app is ad hoc signed and the package unsigned: local hardware testing only. Installing it registers the privileged helper and the install changes the disk and boot policy, so both need the owner at the Mac.
 
+## Debug SSH
+
+The image enables key-only SSH at first boot for the first user, with the public keys of GitHub user `techmore` (`ssh_debug_github_user` in `image-builder/bin/build-mac-image`), and mDNS, so `ssh <user>@<hostname>.local` works from the LAN once `ssh_ready` is logged. Opt out with `/etc/omarchy/no-ssh-debug`, or `omarchy-no-ssh-debug` at the ESP root before the first boot; see [Debug SSH](../image-builder/README.md#debug-ssh-developer-image).
+
 ## Known gaps
 
 - Bluetooth and full-power Wi-Fi need their factory calibration in the device tree: `hci_bcm4377` refuses to probe without `brcm,taurus-bf-cal-blob`, and `brcmfmac` loads `brcm,cal-blob` when present. The J773g ADT carries neither, so the engine packages them as `brcm/brcmbt4388-<address>-bf.bin` and `brcm/brcmfmac4388-<address>-cal.bin`. Neither uboot-aurora nor our kernel reads those files yet; GravityLinux's U-Boot injects them. One of the two needs that loader.

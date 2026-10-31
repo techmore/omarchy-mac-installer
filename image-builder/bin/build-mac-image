@@ -60,6 +60,13 @@ BOOTSTRAP=(base sudo btrfs-progs dosfstools e2fsprogs archlinuxarm-keyring asahi
 # GRUB is not installed, and /etc/default/grub, which the finalizer writes, is
 # just the file the Limine command line is derived from.
 PLATFORM_PACKAGES=(mkinitcpio limine limine-snapper-sync asahi-scripts asahi-fwextract)
+# Debug SSH for the owner's developer image (builder/ssh-debug): ssh_debug=0
+# builds without it; the GitHub account whose public keys the first user is
+# given at first boot is ssh_debug_github_user. Keys are public; the image
+# carries no key, no authorized_keys and no enabled sshd, only the oneshot.
+ssh_debug=1
+ssh_debug_github_user=techmore
+SSH_DEBUG_PACKAGES=(openssh)
 # The speaker stack's model profiles and DSP chain. Without alsa-ucm-conf-asahi
 # the default sink is stereo-fallback, not the model's convolver; the runtime's
 # audio leaf, deferred to first boot, may find no network to fetch them.
@@ -991,8 +998,10 @@ install_runtime() {
 install_apple_set() {
   local installed name version
   mount_api
+  local debug=()
+  (( ssh_debug )) && debug=("${SSH_DEBUG_PACKAGES[@]}")
   target_pacman -S $(qualified "${apple_names[@]}" $(candidate_names boot) $(candidate_names support)) "${PLATFORM_PACKAGES[@]}" \
-    $(qualified "${APPLE_AUDIO[@]}") >>"$logs/install.log" 2>&1 || fail "could not install the Apple set (logs/install.log)"
+    $(qualified "${APPLE_AUDIO[@]}") "${debug[@]}" >>"$logs/install.log" 2>&1 || fail "could not install the Apple set (logs/install.log)"
   unmount_api
   installed=$(pacman --dbpath "$target/var/lib/pacman" -Q)
   while read -r name version; do
@@ -1302,6 +1311,7 @@ configure_image() {
   stage_board_boot_payloads
   stage_recovery_app
   stage_install_timing
+  stage_ssh_debug
   arm_first_boot
   # Recorded once the boot setup, which could change packages, is done.
   record_packages
@@ -1360,6 +1370,22 @@ stage_install_timing() {
   # The group by the image's own /etc/group, not the build host's.
   isolated_chroot "$target" chgrp wheel /var/log/omarchy ||
     fail "could not give wheel the install-timing log directory"
+}
+
+# Debug SSH (ssh_debug above): the oneshot enables sshd with key-only logins
+# and the GitHub keys of ssh_debug_github_user once the first user exists and
+# the network is up, so nothing the lab-access scan refuses is in the image.
+stage_ssh_debug() {
+  (( ssh_debug )) || return 0
+  [[ $ssh_debug_github_user =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$ ]] ||
+    fail "ssh_debug_github_user is not a GitHub user name: $ssh_debug_github_user"
+  install -Dm0755 "$ROOT/builder/ssh-debug/omarchy-ssh-debug" "$target/usr/local/bin/omarchy-ssh-debug"
+  install -Dm0644 "$ROOT/builder/ssh-debug/omarchy-ssh-debug.service" \
+    "$target/etc/systemd/system/omarchy-ssh-debug.service"
+  printf '# omarchy-ssh-debug: whose GitHub public keys the first user gets.\nGITHUB_USER=%s\n' \
+    "$ssh_debug_github_user" | install -Dm0644 /dev/stdin "$target/etc/omarchy/ssh-debug.conf"
+  mkdir -p "$target/etc/systemd/system/multi-user.target.wants"
+  ln -sf ../omarchy-ssh-debug.service "$target/etc/systemd/system/multi-user.target.wants/"
 }
 
 # Board payloads come from the same authenticated m1n1-aurora package as Stage 2.

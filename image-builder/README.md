@@ -123,6 +123,19 @@ The installer engine copies its performance log (UTC start and end of each phase
 
 Opting out: the owner touches `~/.config/omarchy/no-claude-code` (keeps the desktop record), or deletes the hook (stops both). A build without the Claude Code step sets `first_login_claude_code=0` in `bin/build-mac-image`. The hook reaches users created from `/etc/skel` (the first-boot owner); an existing user copies it into `~/.config/omarchy/hooks/post-boot.d/` by hand. `test/install-timing-test.sh` exercises the scripts with fake system tools.
 
+## Debug SSH (developer image)
+
+For debugging the desktop from another machine, the image enables SSH on its first boot, with keys only. `bin/build-mac-image` sets `ssh_debug=1` and `ssh_debug_github_user=techmore`; `ssh_debug=0` builds without it. The build installs `openssh` and stages `omarchy-ssh-debug` with `omarchy-ssh-debug.service` and `/etc/omarchy/ssh-debug.conf` (`GITHUB_USER=`), and nothing else: no key, no `authorized_keys`, no sshd drop-in and no enabled sshd, so the image passes the lab-access scan like any other.
+
+The oneshot runs after `network-online.target` (Omarchy masks NetworkManager-wait-online, so it retries itself: 30 fetches 10 seconds apart, then again every minute until it succeeds once, marked by `/var/lib/omarchy/ssh-debug/done`). Once the first user (the lowest UID from 1000 with a login shell) exists, it:
+
+- fetches `https://github.com/<GITHUB_USER>.keys` and appends each line that is a plain public key (a known type whose blob names it, no options; `ssh-keygen -l` must accept it) to that user's `~/.ssh/authorized_keys` (directory 0700, file 0600, owned by the user), marked `github:<user>`; keys already there, the user's own included, are never changed or duplicated;
+- writes `/etc/ssh/sshd_config.d/20-omarchy-ssh-debug.conf` (`PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `PermitRootLogin no`, `PubkeyAuthentication yes`), checks it with `sshd -t` and that `sshd -T` applies all four, and only then runs `systemctl enable --now sshd`; it never starts sshd while no key is authorized;
+- makes the Mac answer as `<hostname>.local`: Omarchy's `avahi-daemon` with `nss-mdns` (systemd-resolved's `MulticastDNS=yes` when avahi is absent), and opens UFW for SSH (`limit 22/tcp`) and mDNS (`5353/udp`);
+- logs every step to `/var/log/omarchy/ssh-debug.log` and records `ssh_ready` (user, GitHub user, key count) in the install-timing log.
+
+Opting out: `touch /etc/omarchy/no-ssh-debug` on the Mac, or create `omarchy-no-ssh-debug` at the ESP's root (`/boot/efi`) from macOS before the first boot. Undo later with `systemctl disable --now sshd` and deleting the drop-in. `test/ssh-debug-test.sh` covers it with fake system tools.
+
 ## Neo external-display defaults
 
 The Aurora J700 stack uses the ordinary `t8140-j700.dtb` for external displays.
