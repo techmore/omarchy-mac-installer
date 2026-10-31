@@ -269,7 +269,8 @@ class CatalogGeneratorTests(unittest.TestCase):
         self.assertIn("apple,j700", manifest["supported"])
         self.assertIn("apple,j700", manifest["untested"])
         self.assertEqual(set(manifest["refused"]), {"apple,j575d", "apple,j614s"})
-        self.assertEqual(manifest["developer"], {})
+        # The M4 Mac mini is admitted by developer catalogs only.
+        self.assertEqual(set(manifest["developer"]), {"apple,j773g"})
         for template in sorted(MANIFEST.parent.glob("release-inputs*.template.json")):
             identifiers = json.loads(template.read_text())["device_identifiers"]
             self.assertEqual(
