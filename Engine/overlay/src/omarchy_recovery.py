@@ -27,6 +27,11 @@ MANIFEST_NAME = "omarchy-recovery-app.json"
 STAGE2_PATH = "m1n1/boot.bin"
 VENDOR_FIRMWARE = ("vendorfw/firmware.tar", "vendorfw/firmware.cpio", "vendorfw/manifest.txt")
 OPTIONAL_VENDOR_FIRMWARE = "vendorfw/u-boot/asmedia/asm2214a-apple.bin"
+# Boards whose target boot policy also allows custom boot arguments (bputil
+# -nca), so Aura's Stage 1 can be asked for USB proxy mode (aura-proxy) or
+# debug output (aura-debug): the Neo, and the M4 Mac mini, which is admitted
+# by developer catalogs only and is brought up over the USB proxy.
+CUSTOM_BOOT_ARGUMENT_BOARDS = frozenset({"j700ap", "j773gap"})
 UUID_PATTERN = re.compile(r"[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}\Z")
 
 
@@ -212,7 +217,8 @@ def target_config(installer, esp_uuid, esp_root, source_os=None, authorized_owne
         "schema": 2, "volumeName": name, "systemUUID": identifier(info.get("VolumeUUID")),
         "groupUUID": group, "prebootUUID": preboot_uuid, "espUUID": esp_uuid,
         "bootMode": "raw", "stage2Path": STAGE2_PATH, "bootstrap": bootstrap,
-        "allowCustomBootArguments": getattr(getattr(installer, "sysinfo", None), "device_class", "") == "j700ap",
+        "allowCustomBootArguments": getattr(
+            getattr(installer, "sysinfo", None), "device_class", "") in CUSTOM_BOOT_ARGUMENT_BOARDS,
     }
 
 

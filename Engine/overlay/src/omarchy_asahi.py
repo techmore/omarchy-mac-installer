@@ -406,7 +406,7 @@ def _write_step2(installer):
             raise AsahiAdapterError(f"{name} is invalid for the Recovery setup")
     allow_custom_args = getattr(
         getattr(installer, "sysinfo", None), "device_class", ""
-    ) == "j700ap"
+    ) in omarchy_recovery.CUSTOM_BOOT_ARGUMENT_BOARDS
     disclosure = (
         'echo "Custom Aura boot arguments, including USB proxy mode, will be allowed."'
         if allow_custom_args else ""

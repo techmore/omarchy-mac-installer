@@ -158,6 +158,11 @@ class RecoveryTests(unittest.TestCase):
         result = self.stage()
         self.assertTrue(result["configuration"]["allowCustomBootArguments"])
 
+    def test_m4_mini_configuration_explicitly_allows_custom_boot_arguments(self):
+        self.installer.sysinfo = SimpleNamespace(device_class="j773gap")
+        result = self.stage()
+        self.assertTrue(result["configuration"]["allowCustomBootArguments"])
+
     def test_second_install_reuses_only_matching_native_app(self):
         first = self.stage()
         binary = self.system / recovery.APP_NAME / "Contents/MacOS/OmarchyRecovery"

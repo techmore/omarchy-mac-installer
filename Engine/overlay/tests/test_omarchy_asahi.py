@@ -1328,11 +1328,12 @@ class Step2ScriptTests(unittest.TestCase):
         result = subprocess.run([*self.shell, "-n", str(step2)])
         self.assertEqual(result.returncode, 0)
 
-    def test_only_neo_enables_and_discloses_custom_boot_arguments(self):
-        neo = self.make("scott", device_class="j700ap").read_text()
+    def test_only_neo_and_m4_mini_enable_and_disclose_custom_boot_arguments(self):
+        for board in ("j700ap", "j773gap"):
+            text = self.make("scott", device_class=board).read_text()
+            self.assertIn('bputil -nca -v "$VGID"', text)
+            self.assertIn('including USB proxy mode', text)
         legacy = self.make("scott", device_class="j314sap").read_text()
-        self.assertIn('bputil -nca -v "$VGID"', neo)
-        self.assertIn('including USB proxy mode', neo)
         self.assertIn('bputil -nc -v "$VGID"', legacy)
         self.assertNotIn('bputil -nca', legacy)
         self.assertNotIn('including USB proxy mode', legacy)
