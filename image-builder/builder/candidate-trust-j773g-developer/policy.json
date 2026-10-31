@@ -45,9 +45,9 @@
   "minimum_versions": {
     "omarchy-mac-boot": "20260921-10",
     "limine-mkinitcpio-hook": "1.39.0-2",
-    "m1n1-aurora": "1.6.1.aurora90-1",
-    "linux-aurora": "7.3.0.aurora90-1",
-    "linux-aurora-headers": "7.3.0.aurora90-1",
+    "m1n1-aurora": "1.6.1.aurora90-2",
+    "linux-aurora": "7.3.0.aurora90-2",
+    "linux-aurora-headers": "7.3.0.aurora90-2",
     "mesa-aurora": "1:26.3.0_devel.20261031.231461.8990cdb219b-1",
     "vulkan-aurora": "1:26.3.0_devel.20261031.231461.8990cdb219b-1"
   },

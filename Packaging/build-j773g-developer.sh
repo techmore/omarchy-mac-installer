@@ -145,13 +145,15 @@ fi
 # The macOS 27 SDK's SwiftUI declares @State as a macro whose plugin only Xcode
 # ships: with the Command Line Tools alone the app does not compile against it.
 # Build against the installed macOS 26 SDK then (SDKROOT overrides this).
-if [[ -z ${SDKROOT:-} && ! -e $(xcode-select -p)/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
-  && ! -e $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
+developer_dir=${DEVELOPER_DIR:-$(xcode-select -p)}
+if [[ -z ${SDKROOT:-} && ! -e $developer_dir/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
+  && ! -e $developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
   && $(xcrun --show-sdk-version) == 2[7-9]* ]]; then
-  fallback_sdk=$(ls -d "$(xcode-select -p)"/SDKs/MacOSX26.[0-9]*.sdk 2>/dev/null | sort -V | tail -n 1)
+  fallback_sdk=$(ls -d "$developer_dir"/SDKs/MacOSX26.[0-9]*.sdk \
+    "$developer_dir"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.[0-9]*.sdk 2>/dev/null | sort -V | tail -n 1)
   [[ -n $fallback_sdk ]] || fail "the macOS $(xcrun --show-sdk-version) SDK needs Xcode to build SwiftUI; install Xcode or a macOS 26 SDK"
   export SDKROOT="$fallback_sdk"
-  echo "build-j773g-developer: building against $SDKROOT (no SwiftUI macro plugin in $(xcode-select -p))" >&2
+  echo "build-j773g-developer: building against $SDKROOT (no SwiftUI macro plugin in $developer_dir)" >&2
 fi
 
 OMARCHY_DEVELOPER_BUILD=1 OMARCHY_OFFLINE_BUILD="$offline" OMARCHY_APP_SIGNING_IDENTITY="$identity" \
