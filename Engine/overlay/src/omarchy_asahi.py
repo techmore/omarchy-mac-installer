@@ -31,6 +31,7 @@ import omarchy_mt7932_policy
 import omarchy_als
 import omarchy_isp
 import omarchy_recovery
+import omarchy_image
 import omarchy_planner
 from omarchy_image import (
     WRITE_VERIFICATION, flush_device, hash_target, open_target, timing, write_image,
@@ -1543,6 +1544,8 @@ class AsahiStage1Adapter:
                 "installer.log",
                 os.path.join(target, "installer.log"),
             )
+            # Linux reads it as /boot/efi/asahi/install-timing.jsonl.
+            omarchy_image.mirror_to(target)
         return self._installed_evidence(plan)
 
     def validate_installed_checkpoint(
@@ -1666,6 +1669,7 @@ class AsahiStage1Adapter:
 
     def prepare_recovery_handoff(self, plan):
         self._require_preflight()
+        omarchy_image.mark("recovery_handoff_begin")
         owner = os.environ.get("OMARCHY_MACHINE_OWNER", "")
         if MACHINE_OWNER_PATTERN.fullmatch(owner) is None:
             raise AsahiAdapterError("machine owner is unavailable")

@@ -1301,6 +1301,7 @@ configure_image() {
   activate_limine
   stage_board_boot_payloads
   stage_recovery_app
+  stage_install_timing
   arm_first_boot
   # Recorded once the boot setup, which could change packages, is done.
   record_packages
@@ -1328,6 +1329,23 @@ stage_recovery_app() {
   mkdir -p "$(dirname "$destination")"
   python3 "$ROOT/builder/recovery_app.py" /recovery-app --sha256 "$digest" --output "$destination" >/dev/null ||
     fail "could not stage the pinned Recovery app"
+}
+
+# Install-speed measurement (owner's release gate): a oneshot that merges the
+# installer's ESP timing log into /var/log/omarchy/install-timing.jsonl on first
+# boot and appends the Linux milestones. The desktop milestone is the user
+# session's (`exec-once = omarchy-install-timing desktop`); the `/var/log/omarchy`
+# directory is root:wheel 0775 and the log root:wheel 0664 for it.
+stage_install_timing() {
+  install -Dm0755 "$ROOT/builder/install-timing/omarchy-install-timing" "$target/usr/local/bin/omarchy-install-timing"
+  install -Dm0644 "$ROOT/builder/install-timing/omarchy-install-timing.service" \
+    "$target/etc/systemd/system/omarchy-install-timing.service"
+  mkdir -p "$target/etc/systemd/system/multi-user.target.wants"
+  ln -sf ../omarchy-install-timing.service "$target/etc/systemd/system/multi-user.target.wants/"
+  install -d -m 0775 "$target/var/log/omarchy"
+  # The group by the image's own /etc/group, not the build host's.
+  isolated_chroot "$target" chgrp wheel /var/log/omarchy ||
+    fail "could not give wheel the install-timing log directory"
 }
 
 # Board payloads come from the same authenticated m1n1-aurora package as Stage 2.

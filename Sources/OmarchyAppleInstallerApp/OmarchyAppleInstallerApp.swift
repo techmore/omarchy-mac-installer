@@ -42,6 +42,7 @@ private final class InstallerApplicationDelegate: NSObject, NSApplicationDelegat
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    InstallerPerformance.markLaunch()
     // The install ends with a shutdown the app itself requests. macOS would
     // otherwise treat it as an app open at shutdown and bring it back at the
     // next login, so someone rebooting from Omarchy into macOS met the

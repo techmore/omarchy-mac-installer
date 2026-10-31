@@ -18,26 +18,71 @@ WRITE_VERIFICATION = "source-sha256-write-flushed-v1"
 PARTITION = re.compile(r"^disk[0-9]+s[0-9]+$")
 
 
+# Extra copies of the performance log, on the new install's ESP, so the
+# owner can read the macOS-side timings from Linux after first boot
+# (/boot/efi/asahi/install-timing.jsonl). Registered by mirror_to().
+TIMING_NAME = "install-timing.jsonl"
+_mirrors = []
+
+
+def _utc(seconds):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(seconds))
+
+
+def _append(path, line):
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT
+                     | os.O_NOFOLLOW, 0o644 if path in _mirrors else 0o600)
+        with os.fdopen(fd, "a") as stream:
+            stream.write(line)
+    except OSError:
+        logging.warning("Performance record could not be saved")
+
+
+def mirror_to(directory):
+    """Copy the log so far into DIRECTORY and append every later record."""
+    path = os.path.join(directory, TIMING_NAME)
+    if path in _mirrors:
+        return
+    # Registered first, so the copy is created world-readable (0644).
+    _mirrors.append(path)
+    source = os.environ.get("OMARCHY_PERFORMANCE_LOG")
+    try:
+        if source and os.path.isfile(source):
+            with open(source) as stream:
+                _append(path, stream.read())
+    except OSError:
+        logging.warning("Performance log could not be copied to the ESP")
+
+
+def mark(event, **fields):
+    """A point-in-time record (for example: the handoff to Recovery)."""
+    now = time.time()
+    record = dict(phase=event, started_at=_utc(now), ended_at=_utc(now),
+                  seconds=0.0, outcome="mark", **fields)
+    _write(record)
+
+
+def _write(record):
+    line = json.dumps(record, sort_keys=True) + "\n"
+    logging.info("PERFORMANCE %s", line.strip())
+    path = os.environ.get("OMARCHY_PERFORMANCE_LOG")
+    for target in ([path] if path else []) + _mirrors:
+        _append(target, line)
+
+
 @contextmanager
 def timing(phase, **fields):
     start = time.monotonic()
+    wall = time.time()
     outcome = "failed"
     try:
         yield
         outcome = "completed"
     finally:
-        record = dict(phase=phase, seconds=time.monotonic() - start,
-                      outcome=outcome, **fields)
-        logging.info("PERFORMANCE %s", json.dumps(record, sort_keys=True))
-        path = os.environ.get("OMARCHY_PERFORMANCE_LOG")
-        if path:
-            try:
-                fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT
-                             | os.O_NOFOLLOW, 0o600)
-                with os.fdopen(fd, "a") as stream:
-                    stream.write(json.dumps(record, sort_keys=True) + "\n")
-            except OSError:
-                logging.warning("Performance record could not be saved")
+        _write(dict(phase=phase, seconds=time.monotonic() - start,
+                    started_at=_utc(wall), ended_at=_utc(time.time()),
+                    outcome=outcome, **fields))
 
 
 def flush_device(target):

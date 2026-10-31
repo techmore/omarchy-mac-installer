@@ -110,5 +110,48 @@ class ImageTests(unittest.TestCase):
         ioctl.assert_called_once_with(55, 0x80186416, bytes(24))
 
 
+
+class TimingTests(unittest.TestCase):
+    def setUp(self):
+        import omarchy_image
+        import tempfile
+        self.image = omarchy_image
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.log = self.root / 'performance.jsonl'
+        self.esp = self.root / 'esp'
+        self.esp.mkdir()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(self.image._mirrors.clear)
+        env = patch.dict('os.environ', {'OMARCHY_PERFORMANCE_LOG': str(self.log)})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def records(self, path):
+        import json
+        return [json.loads(line) for line in path.read_text().splitlines()]
+
+    def test_phases_carry_utc_start_and_end(self):
+        with self.image.timing('prepare_target'):
+            pass
+        (record,) = self.records(self.log)
+        self.assertEqual((record['phase'], record['outcome']), ('prepare_target', 'completed'))
+        self.assertRegex(record['started_at'], r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$')
+        self.assertLessEqual(record['started_at'], record['ended_at'])
+
+    def test_the_esp_copy_has_the_log_so_far_and_every_later_record(self):
+        with self.image.timing('prepare_target'):
+            pass
+        self.image.mirror_to(str(self.esp))
+        self.image.mirror_to(str(self.esp))
+        self.image.mark('recovery_handoff_begin')
+        copy = self.esp / self.image.TIMING_NAME
+        self.assertEqual([r['phase'] for r in self.records(copy)],
+                         ['prepare_target', 'recovery_handoff_begin'])
+        self.assertEqual(self.records(copy), self.records(self.log))
+        self.assertEqual(copy.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(self.records(copy)[-1]['outcome'], 'mark')
+
+
 if __name__ == '__main__':
     unittest.main()

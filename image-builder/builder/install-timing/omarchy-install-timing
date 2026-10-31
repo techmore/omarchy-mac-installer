@@ -1,0 +1,43 @@
+#!/bin/bash
+# Record the Linux half of the install-speed measurement (release gate
+# 2026-10-31): first boot, the desktop, and Claude Code answering. The macOS
+# half (app phases, engine phases with UTC start/end) is on the ESP as
+# /boot/efi/asahi/install-timing.jsonl, written by the installer engine.
+#   omarchy-install-timing boot      (system unit, after multi-user; once)
+#   omarchy-install-timing desktop   (Hyprland exec-once; once per install)
+#   omarchy-install-timing claude    (once `claude --version` answers; once)
+# The log is root:wheel 0664 in a root:wheel 0775 directory, so the owner's
+# session (wheel) can append its milestones.
+set -euo pipefail
+log=${OMARCHY_INSTALL_TIMING_LOG:-/var/log/omarchy/install-timing.jsonl}
+esp=${OMARCHY_INSTALL_TIMING_ESP:-/boot/efi/asahi/install-timing.jsonl}
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+recorded() { grep -q "\"phase\":\"$1\"" "$log" 2>/dev/null; }
+emit() {
+  printf '{"phase":"%s","at":"%s","uptime_s":%s%s}\n' "$1" "$(now)" \
+    "$(cut -d' ' -f1 "${OMARCHY_INSTALL_TIMING_UPTIME:-/proc/uptime}")" "${2:-}" >>"$log"
+}
+json_text() { tr -d '"\\' | tr -d '\000-\037'; }
+case ${1:-} in
+  boot)
+    recorded linux_first_boot && exit 0
+    if [[ ! -e $log ]]; then
+      install -m 0664 /dev/null "$log"
+      chgrp wheel "$log" 2>/dev/null || true
+    fi
+    [[ -r $esp ]] && sed 's/^{/{"source":"macos",/' "$esp" >>"$log"
+    emit linux_first_boot ",\"kernel\":\"$(uname -r | json_text)\",\"systemd_analyze\":\"$(systemd-analyze 2>/dev/null | head -1 | json_text)\""
+    ;;
+  desktop)
+    recorded desktop_ready && exit 0
+    renderer=$(eglinfo -B 2>/dev/null | grep -m1 'OpenGL renderer' | cut -d: -f2- | sed 's/^ *//' | json_text || true)
+    emit desktop_ready ",\"renderer\":\"${renderer:-unknown}\""
+    ;;
+  claude)
+    recorded claude_code_answering && exit 0
+    version=$(claude --version 2>/dev/null | head -1 | json_text) || exit 1
+    [[ -n $version ]] || exit 1
+    emit claude_code_answering ",\"version\":\"$version\""
+    ;;
+  *) echo "usage: $0 boot|desktop|claude" >&2; exit 64 ;;
+esac
