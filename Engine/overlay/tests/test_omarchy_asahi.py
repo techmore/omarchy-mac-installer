@@ -3,6 +3,7 @@ import io
 from contextlib import contextmanager
 import hashlib
 import json
+import logging
 import os
 import plistlib
 from pathlib import Path
@@ -2291,6 +2292,60 @@ class NeoPeripheralCollectionTests(unittest.TestCase):
             _validate_neo_firmware_package(package)
         manifest.append("LINK apple/tpmtfw-j700.bin other-trackpad.bin")
         _validate_neo_firmware_package(package)
+
+
+class MacMiniM4RadioTests(unittest.TestCase):
+    """The M4 Mac mini's factory calibration joins its vendor firmware package;
+    a missing radio input is logged, never fatal."""
+
+    def run_hook(self, device_class, collect, manifest=()):
+        import omarchy_asahi
+        package = SimpleNamespace(added=[], manifest=list(manifest))
+
+        def add_file(name, data):
+            package.added.append((name, data))
+            package.manifest.append(f"FILE {name} 0")
+
+        package.add_file = add_file
+        installer = SimpleNamespace(sysinfo=SimpleNamespace(device_class=device_class))
+        firmware = SimpleNamespace(core=SimpleNamespace(FWFile=lambda name, data: ("FWFile", name, data)))
+        with patch("omarchy_asahi.asahi_firmware", firmware), self.assertLogs(level="INFO") as logs:
+            logging.info("start")
+            omarchy_asahi._collect_j773g_radios(installer, package, collect=collect)
+        return package.added, "\n".join(logs.output)
+
+    def test_the_mini_adds_its_calibration_and_checks_its_firmware(self):
+        import omarchy_j773g_radio as radio
+        files = {"brcm/brcmbt4388-0a1122334466-bf.bin": b"BLOBb"}
+        manifest = [f"FILE {name} 0" for name in [*radio.WIFI_ALIASES, *radio.BLUETOOTH_FILES]]
+        added, log = self.run_hook("j773gap", lambda: (files, ["WCAL: none"]), manifest)
+        self.assertEqual(added, [(name, ("FWFile", name, data)) for name, data in files.items()])
+        self.assertIn("calibration unavailable: WCAL: none", log)
+        self.assertNotIn("incomplete", log)
+
+    def test_missing_inputs_are_logged_not_fatal(self):
+        def fail():
+            raise OSError("no factory data")
+        added, log = self.run_hook("j773gap", fail)
+        self.assertEqual(added, [])
+        self.assertIn("no factory data", log)
+        self.assertIn("radio firmware is incomplete: brcm/brcmbt4388c2-apple,sakhalin-a.bin", log)
+
+    def test_other_macs_are_left_alone(self):
+        added, log = self.run_hook("j613ap", lambda: self.fail("collected"))
+        self.assertEqual(added, [])
+        self.assertNotIn("M4 Mac mini", log)
+
+    def test_only_the_mini_reads_wifi_from_the_driver_extension(self):
+        import omarchy_asahi
+        original = object
+        fake_stub = SimpleNamespace(WiFiFWCollection=original)
+        with patch("omarchy_asahi.stub", fake_stub):
+            for board, swapped in (("j773gap", True), ("j613ap", False)):
+                installer = SimpleNamespace(sysinfo=SimpleNamespace(device_class=board))
+                with self.subTest(board=board), omarchy_asahi._j773g_radio_collectors(installer):
+                    self.assertEqual(fake_stub.WiFiFWCollection is not original, swapped)
+                self.assertIs(fake_stub.WiFiFWCollection, original)
 
 
 class NeoRadioFirmwareTests(unittest.TestCase):

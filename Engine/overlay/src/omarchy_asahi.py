@@ -30,6 +30,7 @@ import omarchy_mt7932
 import omarchy_mt7932_policy
 import omarchy_als
 import omarchy_isp
+import omarchy_j773g_radio
 import omarchy_recovery
 import omarchy_image
 import omarchy_planner
@@ -691,6 +692,45 @@ def _neo_peripheral_collectors(installer):
             stub.AlsFWCollection, stub.ISPFWCollection, stub.subprocess = old_als, old_isp, old_process
 
 
+@contextlib.contextmanager
+def _j773g_radio_collectors(installer):
+    """On the M4 Mac mini only: read Wi-Fi from macOS 26's driver extension
+    and add the board's aliases (omarchy_j773g_radio)."""
+    if getattr(getattr(installer, "sysinfo", None), "device_class", "") != omarchy_j773g_radio.DEVICE_CLASS:
+        yield
+        return
+    old_wifi = stub.WiFiFWCollection
+    try:
+        stub.WiFiFWCollection = omarchy_j773g_radio.wifi_collection_class(old_wifi)
+        yield
+    except omarchy_j773g_radio.RadioError as error:
+        raise AsahiAdapterError(f"M4 Mac mini Wi-Fi firmware collection failed: {error}") from error
+    finally:
+        stub.WiFiFWCollection = old_wifi
+
+
+def _collect_j773g_radios(installer, pkg, collect=omarchy_j773g_radio.calibrations):
+    """Add the M4 Mac mini's factory radio calibration and check its radio
+    firmware. Ethernet is the install's network, so a missing radio input is
+    logged, never fatal."""
+    if getattr(getattr(installer, "sysinfo", None), "device_class", "") != omarchy_j773g_radio.DEVICE_CLASS:
+        return
+    try:
+        files, errors = collect()
+    except (OSError, subprocess.CalledProcessError, omarchy_j773g_radio.RadioError,
+            omarchy_mt7932.Mt7932Error) as error:
+        files, errors = {}, [str(error)]
+    for error in errors:
+        logging.warning("M4 Mac mini radio calibration unavailable: %s", error)
+    for name, data in sorted(files.items()):
+        pkg.add_file(name, asahi_firmware.core.FWFile(name, data))
+    names = {entry.split()[1] for entry in pkg.manifest if len(entry.split()) >= 2}
+    absent = omarchy_j773g_radio.missing(names)
+    if absent:
+        logging.warning("M4 Mac mini radio firmware is incomplete: %s", ", ".join(absent))
+    logging.info("M4 Mac mini radio calibration: %d files", len(files))
+
+
 def stub_installer(sysinfo, dutil, osinfo):
     """A StubInstaller that reads macOS 26 firmware's bootcaches.plist and
     writes Omarchy's own step2.sh as its Recovery setup."""
@@ -709,8 +749,10 @@ def stub_installer(sysinfo, dutil, osinfo):
     collect_firmware = installer.collect_firmware
 
     def collect_firmware_from_an_encrypted_recovery(pkg):
-        with _newer_trackpad_keys(), _neo_peripheral_collectors(installer):
+        with _newer_trackpad_keys(), _neo_peripheral_collectors(installer), \
+                _j773g_radio_collectors(installer):
             result = _collect_firmware(pkg)
+        _collect_j773g_radios(installer, pkg)
         required = getattr(installer, "required_neo_peripherals", [])
         _collect_neo_radios(installer, pkg, required="radio" in required)
         _collect_neo_touch_id(installer, pkg, required="touch-id" in required)
