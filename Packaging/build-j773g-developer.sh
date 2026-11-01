@@ -160,6 +160,7 @@ fi
 developer_dir=${DEVELOPER_DIR:-$(xcode-select -p)}
 if [[ -z ${SDKROOT:-} && ! -e $developer_dir/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
   && ! -e $developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
+  && ! -e $developer_dir/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib
   && $(xcrun --show-sdk-version) == 2[7-9]* ]]; then
   fallback_sdk=$(ls -d "$developer_dir"/SDKs/MacOSX26.[0-9]*.sdk \
     "$developer_dir"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.[0-9]*.sdk 2>/dev/null | sort -V | tail -n 1 || true)
