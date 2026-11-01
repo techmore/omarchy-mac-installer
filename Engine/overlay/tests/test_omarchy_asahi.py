@@ -2575,3 +2575,60 @@ class NeoTouchIdCalibrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+from omarchy_asahi import (  # noqa: E402
+    GRAVITY_STAGE1,
+    board_stage1,
+    fill_gravity_stage1,
+    read_board_stage1,
+)
+
+
+def gravity_stage1_image(size=0x120000):
+    """A synthetic m1n1-asahi.bin: code, then STACKBOT as its last 8 bytes, 64 KiB aligned."""
+    return b"m1n1 gravity stage 1".ljust(size - 8, b"\0") + b"STACKBOT"
+
+
+class GravityStage1Tests(unittest.TestCase):
+    UUID = "dac5a463-154c-4516-b223-7cfddbd4ddec"
+
+    def test_boot_object_carries_gravity_variables_after_stackbot_and_is_64k_aligned(self):
+        image = gravity_stage1_image()
+        obj = fill_gravity_stage1(image, self.UUID, "m1n1/boot.bin")
+        self.assertTrue(obj.startswith(image))
+        self.assertEqual(len(obj) % (64 * 1024), 0)
+        tail = obj[len(image):].split(b"\0\0\0\0")[0].decode("ascii")
+        self.assertEqual(tail.splitlines(), [
+            f"chosen.gravity,efi-system-partition={self.UUID}",
+            f"chainload={self.UUID};m1n1/boot.bin",
+        ])
+
+    def test_rejects_images_that_are_not_a_raw_stage1(self):
+        with self.assertRaises(AsahiAdapterError):
+            fill_gravity_stage1(gravity_stage1_image()[:-8] + b"\0" * 8, self.UUID, "m1n1/boot.bin")
+        with self.assertRaises(AsahiAdapterError):  # the RPM's m1n1.bin: a logo payload after STACKBOT
+            fill_gravity_stage1(gravity_stage1_image() + b"m1n1_logo_256128", self.UUID, "m1n1/boot.bin")
+        with self.assertRaises(AsahiAdapterError):
+            fill_gravity_stage1(gravity_stage1_image(0x120000 + 16), self.UUID, "m1n1/boot.bin")
+        with self.assertRaises(AsahiAdapterError):
+            fill_gravity_stage1(gravity_stage1_image(), self.UUID.upper(), "m1n1/boot.bin")
+
+    def test_j773g_prefers_gravity_stage1_when_the_image_carries_it(self):
+        member = GRAVITY_STAGE1["j773gap"].member
+        board = board_stage1("j773gap", "26.6.2", {member, "esp/aurora/stage1-j773g.bin"})
+        self.assertEqual(board.member, member)
+        self.assertNotEqual(board_stage1("j773gap", "26.6.2", {"esp/aurora/stage1-j773g.bin"}).member, member)
+        read_board_stage1(board, {member: gravity_stage1_image()}.__getitem__)
+
+    def test_install_writes_the_gravity_boot_object(self):
+        member = GRAVITY_STAGE1["j773gap"].member
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "boot.bin")
+            install_board_stage1("j773gap", "26.6.2", {member: gravity_stage1_image()}.__getitem__,
+                                 self.UUID.upper(), out)
+            data = Path(out).read_bytes()
+            self.assertIn(f"chosen.gravity,efi-system-partition={self.UUID}".encode(), data)
+            self.assertIn(f"chainload={self.UUID};m1n1/boot.bin".encode(), data)
+            self.assertEqual(len(data) % (64 * 1024), 0)
+            self.assertNotIn(b"AURORA-S1-CFG01", data)

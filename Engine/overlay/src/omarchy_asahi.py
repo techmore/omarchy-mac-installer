@@ -463,6 +463,49 @@ BOARD_STAGE1 = {
 }
 
 
+# Boards that boot through Gravity Linux's m1n1 Stage 1 when the image carries it.
+# gravity-bootloader-stage1's m1n1-asahi.bin (GravityLinux/bootloader, CHAINLOADING
+# and NO_DISPLAY) ends at STACKBOT, 64 KiB aligned, and takes asahi-style text
+# variables after it. Its Stage 2 and U-Boot reset ANS between stages and find the
+# ESP through /chosen/gravity,efi-system-partition (GravityLinux/installer
+# src/osinstall.py, src/m1n1.py). The Aurora Stage 1 hands over a live ANS session,
+# which Gravity's U-Boot cannot start: the two Stage 1s are not interchangeable.
+GRAVITY_STAGE1 = {
+    "j773gap": BoardStage1(
+        "esp/gravity/stage1-j773g.bin", 0, "26.6.2", "the M4 Mac mini on macOS 26.6.2",
+    ),
+}
+GRAVITY_ALIGN = 64 * 1024
+
+
+def gravity_stage1(device_class, os_firmware, members):
+    """Gravity's Stage 1 for this Mac and OS firmware when the image carries it, or None."""
+    board = GRAVITY_STAGE1.get(device_class)
+    if board is None or board.member not in members or board.os_firmware not in (None, os_firmware):
+        return None
+    return board
+
+
+def fill_gravity_stage1(image, uuid, path):
+    """Gravity's boot object: m1n1 + its variables, zero-padded to 64 KiB for T8132."""
+    if not CANONICAL_UUID.fullmatch(uuid):
+        raise AsahiAdapterError("ESP PARTUUID must be canonical lowercase")
+    if not path or any(not 0x20 <= ord(c) < 0x7F or c in ";\\" for c in path) or any(
+        component in ("", ".", "..") for component in path.split("/")
+    ):
+        raise AsahiAdapterError("Stage 2 path must be relative to the ESP root")
+    if not image.endswith(b"STACKBOT") or image.count(b"STACKBOT") != 1:
+        raise AsahiAdapterError("Gravity Stage 1 does not end at its only STACKBOT")
+    if len(image) % GRAVITY_ALIGN:
+        raise AsahiAdapterError("Gravity Stage 1 is not 64 KiB aligned")
+    variables = (
+        f"chosen.gravity,efi-system-partition={uuid}\n"
+        f"chainload={uuid};{path}\n"
+    ).encode("ascii") + b"\0\0\0\0"
+    boot_object = image + variables
+    return boot_object + b"\0" * (-len(boot_object) % GRAVITY_ALIGN)
+
+
 def fill_aurora_stage1(image, uuid, path, window_ms):
     if not CANONICAL_UUID.fullmatch(uuid):
         raise AsahiAdapterError("ESP PARTUUID must be canonical lowercase")
@@ -495,6 +538,9 @@ def board_stage1(device_class, os_firmware, members=(), *, common_allowed=False)
     """The Aurora Stage 1 this Mac and OS firmware boot through, or None."""
     if common_allowed and COMMON_STAGE1.member in members:
         return COMMON_STAGE1
+    gravity = gravity_stage1(device_class, os_firmware, members)
+    if gravity is not None:
+        return gravity
     board = BOARD_STAGE1.get(device_class)
     if board is None or board.os_firmware not in (None, os_firmware):
         return None
@@ -520,7 +566,10 @@ def read_board_stage1(board, read_member, next_object="m1n1/boot.bin"):
         image = read_member(board.member)
     except KeyError as error:
         raise AsahiAdapterError(f"this image has no {board.member} for {board.macs}") from error
-    fill_aurora_stage1(image, PLACEHOLDER_UUID, next_object, board.window_ms)
+    if board in GRAVITY_STAGE1.values():
+        fill_gravity_stage1(image, PLACEHOLDER_UUID, next_object)
+    else:
+        fill_aurora_stage1(image, PLACEHOLDER_UUID, next_object, board.window_ms)
     return image
 
 
@@ -534,6 +583,16 @@ def install_board_stage1(
     except KeyError:
         common_image = None
     use_common = common_allowed and common_image is not None
+    gravity = None if use_common else GRAVITY_STAGE1.get(device_class)
+    if gravity is not None and gravity.os_firmware in (None, os_firmware):
+        try:
+            gravity_image = read_member(gravity.member)
+        except KeyError:
+            gravity_image = None
+        if gravity_image is not None:
+            with open(boot_object, "wb") as fd:
+                fd.write(fill_gravity_stage1(gravity_image, esp_uuid.lower(), next_object))
+            return
     board = COMMON_STAGE1 if use_common else board_stage1(device_class, os_firmware)
     if board is None:
         return
