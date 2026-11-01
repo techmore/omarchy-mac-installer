@@ -281,7 +281,7 @@ def check_payload(lane: str, package: Path, installer_data: Path, profile: str =
             require(not any(n.startswith(recovery_app.PREFIX) for n in members),
                     "Recovery app present without native Recovery metadata")
         required = set(REQUIRED_MEMBERS) | {"esp/aurora/stage1-j700.bin", "esp/m1n1/boot-j700.bin",
-                                            "esp/aurora/stage1-j773g.bin"}
+                                            "esp/gravity/stage1-j773g.bin"}
         missing = sorted(required - set(members))
         require(not missing, "missing members: " + ", ".join(missing))
         require("esp/omarchy" in directories, "missing members: esp/omarchy/")
@@ -306,9 +306,12 @@ def check_payload(lane: str, package: Path, installer_data: Path, profile: str =
                 "the J700 Stage 1 has an invalid configuration block")
         require(archive.read("esp/m1n1/boot-j700.bin") == archive.read("esp/m1n1/boot.bin"),
                 "the J700 Stage 2 differs from the common bundle")
-        # The M4 Mac mini's Stage 1 (BOARD_STAGE1 j773gap) is the same raw image.
-        require(archive.read("esp/aurora/stage1-j773g.bin") == stage1,
-                "the J773g Stage 1 differs from the J700 Stage 1")
+        # The M4 Mac mini's Stage 1 (BOARD_STAGE1 j773gap) is Gravity's NO_DISPLAY
+        # build, which the engine fills with asahi's chainload variable and pads.
+        gravity = archive.read("esp/gravity/stage1-j773g.bin")
+        require(gravity.endswith(b"STACKBOT") and len(gravity) % (64 * 1024) == 0
+                and b"display: NO_DISPLAY!" in gravity,
+                "the J773g Stage 1 is not a 64 KiB aligned NO_DISPLAY Gravity Stage 1")
 
         keep = {
             "boot.img": 0x488,

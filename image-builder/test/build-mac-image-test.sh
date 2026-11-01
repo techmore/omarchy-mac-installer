@@ -1037,10 +1037,12 @@ fi
   printf 'authenticated raw Stage 1' >"$target/usr/share/m1n1-aurora/stage1/m1n1-raw.bin"
   printf 'legacy installer copy' >"$target/usr/share/aura/stage1/aura-raw.bin"
   printf 'assembled Stage 2' >"$target/boot/efi/m1n1/boot.bin"
+  printf 'authenticated Gravity Stage 1' >"$target/usr/share/m1n1-aurora/stage1/gravity-m1n1.bin"
   stage_board_boot_payloads
   cmp "$target/usr/share/m1n1-aurora/stage1/m1n1-raw.bin" "$target/boot/efi/aurora/stage1-j700.bin" || exit 1
   cmp "$target/boot/efi/m1n1/boot.bin" "$target/boot/efi/m1n1/boot-j700.bin" || exit 1
-  cmp "$target/usr/share/m1n1-aurora/stage1/m1n1-raw.bin" "$target/boot/efi/aurora/stage1-j773g.bin" || exit 1
+  cmp "$target/usr/share/m1n1-aurora/stage1/gravity-m1n1.bin" "$target/boot/efi/gravity/stage1-j773g.bin" || exit 1
+  [[ ! -e $target/boot/efi/aurora/stage1-j773g.bin ]] || exit 1
   rm "$target/usr/share/m1n1-aurora/stage1/m1n1-raw.bin"
   if (fail() { builder_fail "$@"; }; stage_board_boot_payloads) >/dev/null 2>&1; then
     exit 1

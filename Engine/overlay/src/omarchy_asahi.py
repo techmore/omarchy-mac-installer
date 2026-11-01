@@ -435,8 +435,13 @@ CANONICAL_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 # Checks an image before any disk changes, when there is no ESP yet.
 PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000"
 
-BoardStage1 = collections.namedtuple("BoardStage1", "member window_ms os_firmware macs")
+BoardStage1 = collections.namedtuple(
+    "BoardStage1", "member window_ms os_firmware macs format", defaults=("aurora",)
+)
 COMMON_STAGE1 = BoardStage1("esp/aurora/stage1.bin", 0, None, "all admitted Apple Silicon Macs")
+# kmutil registers a T8132 boot object only when its whole length, variables
+# included, is a multiple of 64 KiB (GravityLinux/installer 517c72a).
+GRAVITY_STAGE1_ALIGN = 64 * 1024
 
 # Boards that boot through Aurora's own Stage 1 instead of asahi's. os_firmware
 # is the only OS firmware the image boots, or None for any.
@@ -449,27 +454,50 @@ BOARD_STAGE1 = {
         "esp/aurora/stage1-j613.bin", 0, "26.6.2",
         "a 13-inch M3 MacBook Air on macOS 26.6.2",
     ),
-    # The M4 Mac mini boots the raw m1n1 Stage 1 (techmore/m1n1
-    # elementaryos-mseries, the same m1n1-aurora build as Stage 2) on 26.6.2
-    # OS firmware only. Its raw image ends at STACKBOT and is 64 KiB aligned
-    # by m1n1-raw.ld, which kmutil needs on T8132 (GravityLinux/installer
-    # 517c72a pads asahi's Stage 1 for the same reason). asahi's Stage 1 is
-    # never used here: it inits the DCP, which crashes T8132's display
-    # firmware (GravityLinux/installer 486e81b builds it NO_DISPLAY).
+    # The M4 Mac mini boots Gravity Linux's Stage 1 on 26.6.2 OS firmware
+    # only: GravityLinux/bootloader built NO_DISPLAY (GravityLinux/installer
+    # 486e81b; asahi's DCP init crashes T8132's display firmware), carried by
+    # m1n1-aurora. It takes asahi's chainload variable, not Aurora's config
+    # block, and is padded to 64 KiB after it (GravityLinux/installer 517c72a).
+    # The raw techmore/m1n1 Stage 1 never booted a J773g.
     "j773gap": BoardStage1(
-        "esp/aurora/stage1-j773g.bin", 0, "26.6.2",
-        "the M4 Mac mini on macOS 26.6.2",
+        "esp/gravity/stage1-j773g.bin", 0, "26.6.2",
+        "the M4 Mac mini on macOS 26.6.2", "gravity",
     ),
 }
 
 
-def fill_aurora_stage1(image, uuid, path, window_ms):
+def _check_chainload_target(uuid, path):
     if not CANONICAL_UUID.fullmatch(uuid):
         raise AsahiAdapterError("ESP PARTUUID must be canonical lowercase")
     if not path or any(not 0x20 <= ord(c) < 0x7F or c in ";\\" for c in path) or any(
         component in ("", ".", "..") for component in path.split("/")
     ):
         raise AsahiAdapterError("Stage 2 path must be relative to the ESP root")
+
+
+def fill_gravity_stage1(image, uuid, path):
+    """asahi's chainload variable after the image, padded to 64 KiB."""
+    _check_chainload_target(uuid, path)
+    if not image.endswith(b"STACKBOT") or image.count(b"STACKBOT") != 1:
+        raise AsahiAdapterError("Gravity Stage 1 does not end at STACKBOT")
+    if len(image) % GRAVITY_STAGE1_ALIGN:
+        raise AsahiAdapterError("Gravity Stage 1 is not 64 KiB aligned")
+    if b"display: NO_DISPLAY!" not in image:
+        raise AsahiAdapterError("Gravity Stage 1 is not a NO_DISPLAY build")
+    # The same bytes as asahi-installer m1n1.build(src, dest, [var]).
+    boot_object = image + f"chainload={uuid};{path}\n".encode("ascii") + b"\0\0\0\0"
+    return boot_object + b"\0" * (-len(boot_object) % GRAVITY_STAGE1_ALIGN)
+
+
+def fill_board_stage1(board, image, uuid, path):
+    if board.format == "gravity":
+        return fill_gravity_stage1(image, uuid, path)
+    return fill_aurora_stage1(image, uuid, path, board.window_ms)
+
+
+def fill_aurora_stage1(image, uuid, path, window_ms):
+    _check_chainload_target(uuid, path)
     encoded = b";" + path.encode("ascii")
     if len(encoded) >= 192:
         raise AsahiAdapterError("Stage 2 path is too long")
@@ -520,7 +548,7 @@ def read_board_stage1(board, read_member, next_object="m1n1/boot.bin"):
         image = read_member(board.member)
     except KeyError as error:
         raise AsahiAdapterError(f"this image has no {board.member} for {board.macs}") from error
-    fill_aurora_stage1(image, PLACEHOLDER_UUID, next_object, board.window_ms)
+    fill_board_stage1(board, image, PLACEHOLDER_UUID, next_object)
     return image
 
 
@@ -538,7 +566,7 @@ def install_board_stage1(
     if board is None:
         return
     image = common_image if use_common else read_board_stage1(board, read_member, next_object)
-    filled = fill_aurora_stage1(image, esp_uuid.lower(), next_object, board.window_ms)
+    filled = fill_board_stage1(board, image, esp_uuid.lower(), next_object)
     with open(boot_object, "wb") as fd:
         fd.write(filled)
 

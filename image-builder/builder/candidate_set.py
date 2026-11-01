@@ -74,6 +74,7 @@ REVISION_FILES = {
 REQUIRED_OWNERS = {
     'usr/lib/asahi-boot/m1n1.bin': 'm1n1-aurora',
     'usr/share/m1n1-aurora/stage1/m1n1-raw.bin': 'm1n1-aurora',
+    'usr/share/m1n1-aurora/stage1/gravity-m1n1.bin': 'm1n1-aurora',
     'usr/lib/asahi-boot/u-boot-nodtb.bin': 'uboot-aurora',
     'usr/lib/omarchy/initcpio/omarchy-mac-encrypt': 'omarchy-mac-boot',
     'usr/lib/omarchy/mac-first-boot/omarchy-mac-first-boot': 'omarchy-mac-boot',

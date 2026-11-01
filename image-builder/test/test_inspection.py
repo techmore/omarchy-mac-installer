@@ -141,7 +141,7 @@ class InspectionTest(unittest.TestCase):
                 self.assertFails("installed-boot-payloads", "J700 Stage")
 
     def test_the_j773g_stage1_must_be_the_sets(self):
-        rel = "boot/efi/aurora/stage1-j773g.bin"
+        rel = "boot/efi/gravity/stage1-j773g.bin"
         (self.root / rel).write_bytes(b"another stage 1")
         self.assertFails("installed-boot-payloads", "J773g Stage 1")
         self.setUp()

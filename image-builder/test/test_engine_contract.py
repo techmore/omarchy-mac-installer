@@ -227,7 +227,7 @@ class EngineContractTest(unittest.TestCase):
     def test_missing_or_empty_j700_boot_payloads_are_rejected(self):
         metadata = self.out / "installer_data.json"
         written_metadata(NAME, metadata)
-        for member in ("esp/aurora/stage1-j700.bin", "esp/m1n1/boot-j700.bin", "esp/aurora/stage1-j773g.bin"):
+        for member in ("esp/aurora/stage1-j700.bin", "esp/m1n1/boot-j700.bin", "esp/gravity/stage1-j773g.bin"):
             for kind in ("omit", "empty"):
                 with self.subTest(member=member, kind=kind):
                     payload = self.out / NAME

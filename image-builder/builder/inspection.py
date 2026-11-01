@@ -77,6 +77,8 @@ limine = _load("apple_limine", "apple_limine.py")
 installed_system = _load("verify_installed_system", "verify_installed_system.py")
 # The raw Stage 1 the engine enrolls on a MacBook Neo.
 STAGE1 = "usr/share/m1n1-aurora/stage1/m1n1-raw.bin"
+# The Gravity Linux Stage 1 the engine enrolls on the M4 Mac mini.
+GRAVITY_STAGE1 = "usr/share/m1n1-aurora/stage1/gravity-m1n1.bin"
 test_image_pin = _load("test_image_pin", "test_image_pin.py")
 channel_set = _load("channel_set", "channel_set.py")
 
@@ -304,9 +306,9 @@ def check_installed_payloads(root: Path, candidates: Candidates) -> str:
     require(stage2.is_file() and not stage2.is_symlink()
             and stage2.read_bytes() == (root / "boot/efi/m1n1/boot.bin").read_bytes(),
             "the J700 Stage 2 does not match the inspected common bundle")
-    j773g = root / "boot/efi/aurora/stage1-j773g.bin"
+    j773g = root / "boot/efi/gravity/stage1-j773g.bin"
     require(j773g.is_file() and not j773g.is_symlink()
-            and j773g.read_bytes() == stage1.read_bytes(),
+            and j773g.read_bytes() == candidates.member(candidates.boot_owners[GRAVITY_STAGE1], GRAVITY_STAGE1),
             "the J773g Stage 1 does not match the authenticated m1n1-aurora package")
     return f"m1n1, U-Boot, the kernel and {len(candidates.dtbs())} device trees match the set's archives"
 
