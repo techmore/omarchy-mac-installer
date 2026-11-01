@@ -2,7 +2,7 @@
 
 This fork (techmore/omarchy-mac-installer, branch `elementaryos-mseries`) admits the Mac mini (M4, 2024): `apple,j773g`, device class `j773gap`, chip T8132 (`0x8132`). The board is a `developer` entry of `scripts/supported-models.json`, so only a developer build's sealed catalog can enable it; channel catalogs and the public trust root are unchanged.
 
-What the branch changes: the engine admits `j773gap` on 26.6.2 (25G83) OS firmware with a 6 GB stub, boots it from Aurora's raw Stage 1 (`esp/aurora/stage1-j773g.bin`), enrolls it with `bputil -nca` (Aura `aura-proxy`/`aura-debug` boot arguments), collects its BCM4388 Wi-Fi and Bluetooth inputs (`omarchy_j773g_radio`), and records install timing; the image builder stages the J773g Stage 1, requires `t8132-j773g.dtb`, and adds the Linux timing milestones and first-login Claude Code step. `Engine/source-lock.json` pins the engine built from all of it.
+What the branch changes: the engine admits `j773gap` on 26.6.2 (25G83) OS firmware with a 6 GB stub, boots it from Gravity Linux's NO_DISPLAY Stage 1 (`esp/gravity/stage1-j773g.bin`), enrolls it with `bputil -nca` (Aura `aura-proxy`/`aura-debug` boot arguments), collects its BCM4388 Wi-Fi and Bluetooth inputs (`omarchy_j773g_radio`), and records install timing; the image builder stages the J773g Stage 1 from `m1n1-aurora`'s `gravity-m1n1.bin`, requires `t8132-j773g.dtb`, and adds the Linux timing milestones and first-login Claude Code step. `Engine/source-lock.json` pins the engine built from all of it.
 
 ## Developer catalog key
 
@@ -39,7 +39,7 @@ sudo --preserve-env=MAC_IMAGE_CANDIDATE_TRUST image-builder/bin/build-mac-image 
 image-builder/bin/mac-image-check payload edge out/<payload>.zip out/installer_data.json
 ```
 
-`INSPECTION` must pass, and the payload must carry `esp/aurora/stage1-j773g.bin` and a `m1n1/boot.bin` holding `t8132-j773g.dtb`. The image's profile is `test` (a candidate-only set), so its pacman.conf keeps the runtime with the marked test pin, and it never passes the public release guard.
+`INSPECTION` must pass, and the payload must carry `esp/gravity/stage1-j773g.bin` and a `m1n1/boot.bin` holding `t8132-j773g.dtb`. The image's profile is `test` (a candidate-only set), so its pacman.conf keeps the runtime with the marked test pin, and it never passes the public release guard.
 
 The same signed archives are published as the pacman repository `omarchy-j773g` (database and packages signed by the same key) for installing the opt-in packages and later updates by hand; the image does not list it in `/etc/pacman.conf`.
 
@@ -49,7 +49,7 @@ Until the signed repository exists, repack a published edge payload instead. Thi
 
 1. Unzip the edge payload; loop-mount `root.img` (btrfs, subvolume `@`) and `boot.img`, and bind the ESP tree at `/boot/efi`.
 2. In a chroot (`arch-chroot`), `pacman -U` our `linux-aurora`, `linux-aurora-headers`, `m1n1-aurora`, `mesa-aurora` and `vulkan-aurora` archives, then `mkinitcpio -P`, `update-m1n1` (it rebuilds `/boot/efi/m1n1/boot.bin` with every DTB, `t8132-j773g.dtb` included) and the Limine/UKI refresh the boot package's hook runs.
-3. Copy `/usr/share/m1n1-aurora/stage1/m1n1-raw.bin` to `esp/aurora/stage1-j773g.bin` in the payload tree, and copy `image-builder/builder/install-timing/*` into the root as `stage_install_timing` does if the timing is wanted.
+3. Copy `/usr/share/m1n1-aurora/stage1/gravity-m1n1.bin` to `esp/gravity/stage1-j773g.bin` in the payload tree, and copy `image-builder/builder/install-timing/*` into the root as `stage_install_timing` does if the timing is wanted.
 4. Unmount, re-zip with the same member layout, and run `image-builder/bin/mac-image-check payload edge PAYLOAD.zip installer_data.json` on it. Its `@factory` seal and `PROVENANCE` still describe the edge build: do not publish it.
 
 ## Sealed developer catalog, app and package

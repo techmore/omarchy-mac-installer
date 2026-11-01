@@ -122,6 +122,7 @@ from omarchy_asahi import (  # noqa: E402
     OmarchyOSInstaller,
     esp_board_layout,
     fill_aurora_stage1,
+    fill_gravity_stage1,
     install_board_stage1,
     install_esp_board_layout,
     stub_installer,
@@ -1928,6 +1929,12 @@ def j700_stage1(path=b"", window=0, uuid=b""):
     return b"m1n1 j700 stage 1" + block + b"\0" * 64 + b"STACKBOT"
 
 
+def gravity_stage1():
+    """A NO_DISPLAY GravityLinux/bootloader raw image: 64 KiB, ending at STACKBOT."""
+    head = b"m1n1 gravity stage 1\0display: NO_DISPLAY!\0"
+    return head + b"\0" * (64 * 1024 - len(head) - 8) + b"STACKBOT"
+
+
 class BoardStage1Tests(unittest.TestCase):
     UUID = "97c92d03-2cb3-461f-9134-134a58cc9fdc"
 
@@ -1987,21 +1994,33 @@ class BoardStage1Tests(unittest.TestCase):
             self.assertEqual(uuid.rstrip(b"\0"), self.UUID.encode())
             self.assertEqual(path.rstrip(b"\0"), b";m1n1/boot.bin")
 
-    def test_the_m4_mini_on_26_6_2_gets_the_filled_j773g_stage1(self):
-        import struct as _struct
+    def test_the_m4_mini_on_26_6_2_gets_gravitys_stage1_with_asahis_variable_padded(self):
+        image = gravity_stage1()
         with tempfile.TemporaryDirectory() as root:
             target = self.write_generic(root)
-            package = {"esp/aurora/stage1-j773g.bin": j700_stage1(window=1234)}
+            package = {"esp/gravity/stage1-j773g.bin": image}
             install_board_stage1("j773gap", "26.6.2", package.__getitem__, self.UUID, str(target))
             data = target.read_bytes()
-            offset = data.index(b"AURORA-S1-CFG01\0") + 16
-            _, window, uuid, path = _struct.unpack_from("<II40s192s", data, offset)
-            self.assertEqual(window, 0)
-            self.assertEqual(uuid.rstrip(b"\0"), self.UUID.encode())
-            self.assertEqual(path.rstrip(b"\0"), b";m1n1/boot.bin")
+        variable = f"chainload={self.UUID};m1n1/boot.bin\n".encode() + b"\0\0\0\0"
+        self.assertEqual(data[:len(image) + len(variable)], image + variable)
+        self.assertEqual(len(data), 2 * 64 * 1024)
+        self.assertEqual(data[len(image) + len(variable):].strip(b"\0"), b"")
+
+    def test_an_aligned_gravity_stage1_still_gets_a_whole_padding_block(self):
+        filled = fill_gravity_stage1(gravity_stage1(), self.UUID, "m1n1/boot.bin")
+        self.assertEqual(len(filled) % (64 * 1024), 0)
+
+    def test_gravity_stage1s_that_would_crash_or_not_register_are_refused(self):
+        aligned = gravity_stage1()
+        for image in (aligned[:-8],                                      # no STACKBOT tail
+                      aligned + b"\0" * 8 + b"STACKBOT",                 # unaligned
+                      aligned.replace(b"display: NO_DISPLAY!", b"display: on display!")):
+            with self.subTest(size=len(image)), self.assertRaises(AsahiAdapterError):
+                fill_gravity_stage1(image, self.UUID, "m1n1/boot.bin")
 
     def test_an_m4_mini_image_without_the_j773g_stage1_is_refused(self):
-        for package in ({}, {"esp/aurora/stage1-j773g.bin": b"not a stage 1"}):
+        for package in ({}, {"esp/gravity/stage1-j773g.bin": b"not a stage 1"},
+                        {"esp/aurora/stage1-j773g.bin": j700_stage1()}):
             with self.subTest(package=package), tempfile.TemporaryDirectory() as root:
                 target = self.write_generic(root)
                 with self.assertRaises(AsahiAdapterError):

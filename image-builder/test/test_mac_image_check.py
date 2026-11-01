@@ -282,7 +282,7 @@ class ChannelBuildDirectoryTest(unittest.TestCase):
         self.assertNotIn("allowed_device_classes", target)
         self.assertNotIn("excluded_device_classes", target)
         self.assertEqual(target["supported_fw"], ["13.5", "14.8.3", "26.6.2"])
-        for member in ("esp/aurora/stage1-j700.bin", "esp/m1n1/boot-j700.bin", "esp/aurora/stage1-j773g.bin"):
+        for member in ("esp/aurora/stage1-j700.bin", "esp/m1n1/boot-j700.bin", "esp/gravity/stage1-j773g.bin"):
             with self.subTest(member):
                 fixtures.write_payload(self.out / NAME, check.BOOT_UUID, check.ROOT_UUID, omit=(member,),
                                        recovery_app=self.recovery)

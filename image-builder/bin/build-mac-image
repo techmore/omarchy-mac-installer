@@ -1410,14 +1410,17 @@ stage_ssh_debug() {
 stage_board_boot_payloads() {
   local stage1="$target/usr/share/m1n1-aurora/stage1/m1n1-raw.bin"
   local stage2="$target/boot/efi/m1n1/boot.bin"
+  local gravity="$target/usr/share/m1n1-aurora/stage1/gravity-m1n1.bin"
   [[ -s $stage1 && ! -L $stage1 && -s $stage2 && ! -L $stage2 ]] ||
     fail "the image lacks matched m1n1-aurora Stage 1 and Stage 2 payloads for the MacBook Neo"
-  mkdir -p "$target/boot/efi/aurora" "$target/boot/efi/m1n1"
+  [[ -s $gravity && ! -L $gravity ]] ||
+    fail "the image lacks m1n1-aurora's Gravity Stage 1 for the M4 Mac mini"
+  mkdir -p "$target/boot/efi/aurora" "$target/boot/efi/gravity" "$target/boot/efi/m1n1"
   install -m 0644 "$stage1" "$target/boot/efi/aurora/stage1-j700.bin"
   install -m 0644 "$stage2" "$target/boot/efi/m1n1/boot-j700.bin"
-  # The M4 Mac mini (BOARD_STAGE1 j773gap, 26.6.2 only) boots the same raw
-  # Stage 1 and the common m1n1/boot.bin, which carries t8132-j773g.dtb.
-  install -m 0644 "$stage1" "$target/boot/efi/aurora/stage1-j773g.bin"
+  # The M4 Mac mini (BOARD_STAGE1 j773gap, 26.6.2 only) boots Gravity Linux's
+  # NO_DISPLAY Stage 1 and the common m1n1/boot.bin, which carries t8132-j773g.dtb.
+  install -m 0644 "$gravity" "$target/boot/efi/gravity/stage1-j773g.bin"
 }
 
 # Repository names in pacman configuration FILE, in its order.
