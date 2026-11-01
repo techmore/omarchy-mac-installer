@@ -43,7 +43,7 @@
     func testDeveloperBuildKeepsItsOwnStateAndHidesChannels() {
       let profile = InstallerBuildProfile.resolve(infoDictionary: ["OmarchyDeveloperBuild": true])
       XCTAssertEqual(profile, .developer)
-      XCTAssertTrue(profile.allowsEncryption)
+      XCTAssertFalse(profile.allowsEncryption)
       XCTAssertFalse(profile.showsReleaseChannels)
       XCTAssertEqual(profile.workspaceName, InstallerProductIdentity.appIdentifier + ".developer")
       for other in [InstallerBuildProfile.standard, .privatePlain, .privateLimine] {

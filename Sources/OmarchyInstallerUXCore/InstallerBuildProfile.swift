@@ -29,7 +29,11 @@
       return .standard
     }
 
-    public var allowsEncryption: Bool { self != .privatePlain }
+    /// Developer (J773g bring-up) builds install unencrypted: Omarchy's first-boot encryption has
+    /// not been exercised on the M4 mini (andreinita21/OmarchyM4Mini docs/j773g-install.md), and a
+    /// failed conversion on a screen that lights only once the kernel's display driver starts
+    /// leaves nothing to read. Encryption can be enabled after the first boot.
+    public var allowsEncryption: Bool { self != .privatePlain && self != .developer }
     public var showsReleaseChannels: Bool { self == .standard }
 
     public var workspaceName: String {
